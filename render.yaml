@@ -1,0 +1,45 @@
+services:
+  - type: web
+    name: hs-platform-backend
+    env: node
+    plan: starter
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: JWT_SECRET
+        sync: false  # Set this manually in Render dashboard - SECURITY: Never commit secrets
+      - key: JWT_EXPIRES_IN
+        value: 24h
+      - key: JWT_REFRESH_EXPIRES_IN
+        value: 7d
+      - key: AIRTABLE_API_KEY
+        sync: false  # Set this manually in Render dashboard
+      - key: AIRTABLE_BASE_ID
+        sync: false  # Set this manually in Render dashboard
+      - key: CORS_ORIGIN
+        value: https://platform.andru-ai.com
+      - key: ANTHROPIC_API_KEY
+        sync: false  # Set this manually in Render dashboard
+      - key: NEXT_PUBLIC_SUPABASE_URL
+        value: https://molcqjsqtjbfclasynpg.supabase.co
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false  # Set this manually in Render dashboard
+      - key: FRONTEND_URL
+        value: https://platform.andru-ai.com
+      - key: STORAGE_PATH
+        value: /opt/render/project/storage
+    autoDeploy: true
+    disk:
+      name: backend-storage
+      mountPath: /opt/render/project/storage
+      sizeGB: 2
+    scaling:
+      minInstances: 1
+      maxInstances: 2
+      targetMemoryPercent: 80
+      targetCPUPercent: 70
