@@ -190,6 +190,31 @@ router.get('/api/export/history/:customerId',
   exportController.getExportHistory
 );
 
+// Resource export routes
+router.post('/api/resources/export',
+  customerRateLimit(30, 15 * 60 * 1000), // 30 requests per 15 minutes
+  authenticateMulti,
+  exportController.exportResource
+);
+
+router.get('/api/resources/:id/content',
+  customerRateLimit(50, 15 * 60 * 1000), // 50 requests per 15 minutes
+  authenticateMulti,
+  exportController.getResourceContent
+);
+
+router.post('/api/resources/:id/access',
+  customerRateLimit(100, 15 * 60 * 1000), // 100 requests per 15 minutes
+  authenticateMulti,
+  exportController.trackResourceAccess
+);
+
+router.post('/api/resources/share',
+  customerRateLimit(20, 15 * 60 * 1000), // 20 requests per 15 minutes
+  authenticateMulti,
+  exportController.shareResource
+);
+
 // API documentation route
 router.get('/api/docs', (req, res) => {
   res.json({

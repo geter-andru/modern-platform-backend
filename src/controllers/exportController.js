@@ -438,6 +438,324 @@ const exportController = {
       logger.error(`Error exporting business case:`, error);
       throw error;
     }
+  },
+
+  // Resource export methods
+  async exportResource(req, res) {
+    try {
+      const { resourceId, format, customerId } = req.body;
+      
+      logger.info(`Exporting resource ${resourceId} in format ${format} for customer ${customerId}`);
+      
+      // Validate required parameters
+      if (!resourceId || !format || !customerId) {
+        return res.status(400).json({
+          success: false,
+          error: 'Missing required parameters: resourceId, format, customerId'
+        });
+      }
+
+      // Get resource from Supabase
+      const { createClient } = await import('@supabase/supabase-js');
+      const supabase = createClient(
+        process.env.SUPABASE_URL,
+        process.env.SUPABASE_SERVICE_ROLE_KEY
+      );
+
+      const { data: resource, error: resourceError } = await supabase
+        .from('resources')
+        .select('*')
+        .eq('id', resourceId)
+        .eq('customer_id', customerId)
+        .single();
+
+      if (resourceError || !resource) {
+        return res.status(404).json({
+          success: false,
+          error: 'Resource not found or access denied'
+        });
+      }
+
+      // Check if format is supported
+      if (!resource.export_formats.includes(format.toLowerCase())) {
+        return res.status(400).json({
+          success: false,
+          error: `Format ${format} not supported for this resource`
+        });
+      }
+
+      // Generate export based on format
+      let exportResult;
+      switch (format.toLowerCase()) {
+        case 'pdf':
+          exportResult = await this.generatePDFExport(resource);
+          break;
+        case 'docx':
+          exportResult = await this.generateWordExport(resource);
+          break;
+        case 'json':
+          exportResult = await this.generateJSONExport(resource);
+          break;
+        case 'csv':
+          exportResult = await this.generateCSVExport(resource);
+          break;
+        default:
+          return res.status(400).json({
+            success: false,
+            error: `Unsupported format: ${format}`
+          });
+      }
+
+      // Track export in database
+      await this.trackExport(resourceId, customerId, format, exportResult);
+
+      res.json({
+        success: true,
+        data: {
+          exportId: exportResult.exportId,
+          downloadUrl: exportResult.downloadUrl,
+          format: format,
+          fileSize: exportResult.fileSize,
+          expiresAt: exportResult.expiresAt
+        }
+      });
+
+    } catch (error) {
+      logger.error('Resource export error:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to export resource',
+        details: error.message
+      });
+    }
+  },
+
+  async getResourceContent(req, res) {
+    try {
+      const { id } = req.params;
+      const { customerId } = req.query;
+      
+      logger.info(`Getting content for resource ${id} for customer ${customerId}`);
+      
+      // Get resource from Supabase
+      const { createClient } = await import('@supabase/supabase-js');
+      const supabase = createClient(
+        process.env.SUPABASE_URL,
+        process.env.SUPABASE_SERVICE_ROLE_KEY
+      );
+
+      const { data: resource, error: resourceError } = await supabase
+        .from('resources')
+        .select('*')
+        .eq('id', id)
+        .eq('customer_id', customerId)
+        .single();
+
+      if (resourceError || !resource) {
+        return res.status(404).json({
+          success: false,
+          error: 'Resource not found or access denied'
+        });
+      }
+
+      // Track access
+      await this.trackResourceAccess(id, customerId);
+
+      res.json({
+        success: true,
+        data: {
+          id: resource.id,
+          title: resource.title,
+          description: resource.description,
+          content: resource.content,
+          metadata: resource.metadata,
+          tier: resource.tier,
+          category: resource.category,
+          accessCount: resource.access_count,
+          lastAccessed: resource.last_accessed
+        }
+      });
+
+    } catch (error) {
+      logger.error('Get resource content error:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to get resource content',
+        details: error.message
+      });
+    }
+  },
+
+  async trackResourceAccess(req, res) {
+    try {
+      const { id } = req.params;
+      const { customerId } = req.body;
+      
+      logger.info(`Tracking access for resource ${id} by customer ${customerId}`);
+      
+      await this.trackResourceAccess(id, customerId);
+
+      res.json({
+        success: true,
+        message: 'Access tracked successfully'
+      });
+
+    } catch (error) {
+      logger.error('Track resource access error:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to track resource access',
+        details: error.message
+      });
+    }
+  },
+
+  async shareResource(req, res) {
+    try {
+      const { resourceId, customerId, shareType = 'view' } = req.body;
+      
+      logger.info(`Sharing resource ${resourceId} for customer ${customerId} with type ${shareType}`);
+      
+      // Generate shareable link
+      const shareToken = this.generateShareToken(resourceId, customerId, shareType);
+      const shareUrl = `${process.env.FRONTEND_URL}/resources/shared/${shareToken}`;
+      
+      // Store share record in database
+      await this.storeShareRecord(resourceId, customerId, shareToken, shareType);
+
+      res.json({
+        success: true,
+        data: {
+          shareUrl: shareUrl,
+          shareToken: shareToken,
+          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString() // 7 days
+        }
+      });
+
+    } catch (error) {
+      logger.error('Share resource error:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to share resource',
+        details: error.message
+      });
+    }
+  },
+
+  // Helper methods for resource export
+  async generatePDFExport(resource) {
+    // Mock implementation - would use Puppeteer or similar
+    const exportId = `pdf_${resource.id}_${Date.now()}`;
+    return {
+      exportId,
+      downloadUrl: `${process.env.BACKEND_URL}/api/exports/${exportId}`,
+      fileSize: 1024 * 1024, // 1MB mock
+      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() // 24 hours
+    };
+  },
+
+  async generateWordExport(resource) {
+    // Mock implementation - would use docx library
+    const exportId = `docx_${resource.id}_${Date.now()}`;
+    return {
+      exportId,
+      downloadUrl: `${process.env.BACKEND_URL}/api/exports/${exportId}`,
+      fileSize: 512 * 1024, // 512KB mock
+      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+    };
+  },
+
+  async generateJSONExport(resource) {
+    // Mock implementation
+    const exportId = `json_${resource.id}_${Date.now()}`;
+    return {
+      exportId,
+      downloadUrl: `${process.env.BACKEND_URL}/api/exports/${exportId}`,
+      fileSize: 256 * 1024, // 256KB mock
+      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+    };
+  },
+
+  async generateCSVExport(resource) {
+    // Mock implementation
+    const exportId = `csv_${resource.id}_${Date.now()}`;
+    return {
+      exportId,
+      downloadUrl: `${process.env.BACKEND_URL}/api/exports/${exportId}`,
+      fileSize: 128 * 1024, // 128KB mock
+      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+    };
+  },
+
+  async trackExport(resourceId, customerId, format, exportResult) {
+    // Track export in database
+    const { createClient } = await import('@supabase/supabase-js');
+    const supabase = createClient(
+      process.env.SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_ROLE_KEY
+    );
+
+    // For now, we'll use a mock user_id since we don't have auth integration yet
+    // In production, this would come from the authenticated user
+    const mockUserId = '00000000-0000-0000-0000-000000000001';
+
+    await supabase
+      .from('export_history')
+      .insert({
+        user_id: mockUserId,
+        export_type: 'custom', // Using 'custom' since 'resource' is not in the allowed values
+        export_format: format,
+        file_name: `resource_${resourceId}_${Date.now()}.${format}`,
+        file_size: exportResult.fileSize,
+        download_url: exportResult.downloadUrl,
+        status: 'completed',
+        requested_at: new Date().toISOString(),
+        completed_at: new Date().toISOString()
+      });
+  },
+
+  async trackResourceAccess(resourceId, customerId) {
+    // Update access count and last accessed
+    const { createClient } = await import('@supabase/supabase-js');
+    const supabase = createClient(
+      process.env.SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_ROLE_KEY
+    );
+
+    await supabase
+      .from('resources')
+      .update({
+        access_count: supabase.raw('access_count + 1'),
+        last_accessed: new Date().toISOString()
+      })
+      .eq('id', resourceId)
+      .eq('customer_id', customerId);
+  },
+
+  generateShareToken(resourceId, customerId, shareType) {
+    // Generate a secure share token
+    const crypto = require('crypto');
+    const data = `${resourceId}:${customerId}:${shareType}:${Date.now()}`;
+    return crypto.createHash('sha256').update(data).digest('hex').substring(0, 32);
+  },
+
+  async storeShareRecord(resourceId, customerId, shareToken, shareType) {
+    // Store share record in database
+    const { createClient } = await import('@supabase/supabase-js');
+    const supabase = createClient(
+      process.env.SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_ROLE_KEY
+    );
+
+    await supabase
+      .from('resource_shares')
+      .insert({
+        resource_id: resourceId,
+        customer_id: customerId,
+        share_token: shareToken,
+        share_type: shareType,
+        expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+      });
   }
 };
 
