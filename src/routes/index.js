@@ -60,6 +60,25 @@ router.post('/api/customer/:customerId/generate-icp',
   customerController.generateAIICP
 );
 
+// Product endpoints
+router.post('/api/products/save',
+  customerRateLimit(30, 15 * 60 * 1000), // 30 requests per 15 minutes
+  authenticateMulti,
+  customerController.saveProduct
+);
+
+router.get('/api/products/history',
+  customerRateLimit(30, 15 * 60 * 1000), // 30 requests per 15 minutes
+  authenticateMulti,
+  customerController.getProductHistory
+);
+
+router.get('/api/products/current-user',
+  customerRateLimit(30, 15 * 60 * 1000), // 30 requests per 15 minutes
+  authenticateMulti,
+  customerController.getCurrentProduct
+);
+
 // Admin route - get all customers (requires authentication + admin permissions)
 router.get('/api/customers',
   strictRateLimiter,
@@ -111,6 +130,12 @@ router.post('/api/business-case/generate',
   authenticateMulti,
   validate(businessCaseSchema),
   businessCaseController.generateBusinessCase
+);
+
+router.post('/api/business-case/generate-simple',
+  customerRateLimit(15, 15 * 60 * 1000), // 15 requests per 15 minutes
+  authenticateMulti,
+  businessCaseController.generateSimplifiedBusinessCase
 );
 
 router.post('/api/business-case/customize',
