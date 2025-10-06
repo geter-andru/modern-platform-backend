@@ -1,4 +1,5 @@
-import airtableService from '../services/airtableService.js';
+import supabaseDataService from '../services/supabaseDataService.js';
+import airtableService from '../services/airtableService.js'; // Keep as fallback
 import aiService from '../services/aiService.js';
 import makeService from '../services/makeService.js';
 import logger from '../utils/logger.js';
@@ -92,14 +93,14 @@ const costCalculatorController = {
       };
 
       // Save calculation result to customer record
-      await airtableService.updateCustomer(customerId, {
+      await supabaseDataService.updateCustomer(customerId, {
         'Cost Calculator Content': JSON.stringify(result),
         'Content Status': 'Ready',
         'Last Accessed': new Date().toISOString()
       });
 
       // Create user progress record
-      await airtableService.createUserProgress(customerId, 'Cost Calculator', {
+      await supabaseDataService.updateUserProgress(customerId, 'cost_calculator', {
         calculationType: 'cost_of_inaction',
         scenario,
         totalCost,
@@ -125,7 +126,7 @@ const costCalculatorController = {
       
       logger.info(`Fetching cost calculation for customer ${customerId}`);
       
-      const customer = await airtableService.getCustomerById(customerId);
+      const customer = await supabaseDataService.getCustomerById(customerId);
       
       if (!customer) {
         return res.status(404).json({
@@ -166,7 +167,7 @@ const costCalculatorController = {
       const { customerId, calculations } = req.body;
       
       // Verify customer exists
-      const customer = await airtableService.getCustomerById(customerId);
+      const customer = await supabaseDataService.getCustomerById(customerId);
       if (!customer) {
         return res.status(404).json({
           success: false,
@@ -176,7 +177,7 @@ const costCalculatorController = {
       }
 
       // Save to customer record
-      await airtableService.updateCustomer(customerId, {
+      await supabaseDataService.updateCustomer(customerId, {
         'Cost Calculator Content': JSON.stringify({
           latestCalculation: calculations,
           savedAt: new Date().toISOString()
@@ -184,7 +185,7 @@ const costCalculatorController = {
       });
 
       // Create progress record
-      await airtableService.createUserProgress({
+      await supabaseDataService.updateUserProgress(customerId, 'cost_calculator', {
         'Customer ID': customerId,
         'Tool Name': 'Cost Calculator',
         'Progress Data': JSON.stringify(calculations),
@@ -210,7 +211,7 @@ const costCalculatorController = {
       const { customerId } = req.params;
       
       // Get customer with cost calculation content
-      const customer = await airtableService.getCustomerById(customerId);
+      const customer = await supabaseDataService.getCustomerById(customerId);
       if (!customer) {
         return res.status(404).json({
           success: false,
@@ -301,7 +302,7 @@ const costCalculatorController = {
       logger.info(`Calculating AI-enhanced cost analysis for customer ${customerId}`);
 
       // Get customer data
-      const customer = await airtableService.getCustomerById(customerId);
+      const customer = await supabaseDataService.getCustomerById(customerId);
       if (!customer) {
         return res.status(404).json({
           success: false,
@@ -375,7 +376,7 @@ const costCalculatorController = {
         inputData: inputData
       };
 
-      await airtableService.updateCustomer(customerId, {
+      await supabaseDataService.updateCustomer(customerId, {
         'Cost Calculator Content': JSON.stringify(costData),
         'Content Status': 'Ready',
         'Last Accessed': new Date().toISOString()

@@ -1,4 +1,5 @@
-import airtableService from '../services/airtableService.js';
+import supabaseDataService from '../services/supabaseDataService.js';
+import airtableService from '../services/airtableService.js'; // Keep as fallback during migration
 import aiService from '../services/aiService.js';
 import makeService from '../services/makeService.js';
 import logger from '../utils/logger.js';
@@ -8,11 +9,11 @@ const customerController = {
   async getCustomer(req, res) {
     try {
       const { customerId } = req.params;
-      
+
       logger.info(`Fetching customer data for ${customerId}`);
-      
-      const customer = await airtableService.getCustomerById(customerId);
-      
+
+      const customer = await supabaseDataService.getCustomerById(customerId);
+
       if (!customer) {
         return res.status(404).json({
           success: false,
@@ -22,7 +23,7 @@ const customerController = {
       }
 
       // Update last accessed timestamp
-      await airtableService.updateCustomer(customerId, {
+      await supabaseDataService.updateCustomer(customerId, {
         'Last Accessed': new Date().toISOString()
       });
 
@@ -40,11 +41,11 @@ const customerController = {
   async getCustomerICP(req, res) {
     try {
       const { customerId } = req.params;
-      
+
       logger.info(`Fetching ICP data for customer ${customerId}`);
-      
-      const customer = await airtableService.getCustomerById(customerId);
-      
+
+      const customer = await supabaseDataService.getCustomerById(customerId);
+
       if (!customer) {
         return res.status(404).json({
           success: false,
@@ -57,7 +58,10 @@ const customerController = {
       let icpData = null;
       if (customer.icpContent) {
         try {
-          icpData = JSON.parse(customer.icpContent);
+          // Supabase stores JSON directly, but handle string case for migration
+          icpData = typeof customer.icpContent === 'string'
+            ? JSON.parse(customer.icpContent)
+            : customer.icpContent;
         } catch (parseError) {
           logger.warn(`Failed to parse ICP content for customer ${customerId}:`, parseError);
           icpData = { rawContent: customer.icpContent };
@@ -84,11 +88,11 @@ const customerController = {
     try {
       const { customerId } = req.params;
       const updateData = req.body;
-      
+
       logger.info(`Updating customer ${customerId} with data:`, updateData);
-      
+
       // Ensure customer exists first
-      const existingCustomer = await airtableService.getCustomerById(customerId);
+      const existingCustomer = await supabaseDataService.getCustomerById(customerId);
       if (!existingCustomer) {
         return res.status(404).json({
           success: false,
@@ -99,9 +103,9 @@ const customerController = {
 
       // Add timestamp for last updated
       updateData['Last Accessed'] = new Date().toISOString();
-      
-      const updatedRecord = await airtableService.updateCustomer(customerId, updateData);
-      
+
+      const updatedRecord = await supabaseDataService.updateCustomer(customerId, updateData);
+
       res.status(200).json({
         success: true,
         data: {
@@ -120,11 +124,11 @@ const customerController = {
   async getAllCustomers(req, res) {
     try {
       const limit = parseInt(req.query.limit) || 100;
-      
+
       logger.info(`Fetching all customers with limit ${limit}`);
-      
-      const customers = await airtableService.getAllCustomers(limit);
-      
+
+      const customers = await supabaseDataService.getAllCustomers(limit);
+
       res.status(200).json({
         success: true,
         data: {
@@ -148,7 +152,7 @@ const customerController = {
       logger.info(`Generating AI-powered ICP for customer ${customerId}`);
 
       // Get customer data
-      const customer = await airtableService.getCustomerById(customerId);
+      const customer = await supabaseDataService.getCustomerById(customerId);
       if (!customer) {
         return res.status(404).json({
           success: false,
@@ -184,7 +188,7 @@ const customerController = {
         source: 'ai_generated'
       };
 
-      await airtableService.updateCustomer(customerId, {
+      await supabaseDataService.updateCustomer(customerId, {
         'ICP Content': JSON.stringify(icpContent),
         'Content Status': 'Ready',
         'Last Accessed': new Date().toISOString()

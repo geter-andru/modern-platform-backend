@@ -1,4 +1,5 @@
-import airtableService from './airtableService.js';
+import supabaseDataService from './supabaseDataService.js';
+import airtableService from './airtableService.js'; // Keep as fallback during migration
 import makeService from './makeService.js';
 import logger from '../utils/logger.js';
 
@@ -51,7 +52,7 @@ class ProgressService {
       logger.info(`Tracking progress for customer ${customerId}: ${action}`);
 
       // Get current customer data
-      const customer = await airtableService.getCustomerById(customerId);
+      const customer = await supabaseDataService.getCustomerById(customerId);
       if (!customer) {
         throw new Error('Customer not found');
       }
@@ -91,7 +92,7 @@ class ProgressService {
    */
   async getCurrentProgress(customerId) {
     try {
-      const progressData = await airtableService.getUserProgress(customerId);
+      const progressData = await supabaseDataService.getUserProgress(customerId);
       
       // Calculate overall completion percentage
       const completedMilestones = this.milestones.filter(milestone => 
@@ -181,7 +182,7 @@ class ProgressService {
 
       // Update milestones
       for (const milestone of triggeredMilestones) {
-        await airtableService.updateUserProgress(customerId, milestone.id, {
+        await supabaseDataService.updateUserProgress(customerId, milestone.id, {
           completed: true,
           completedAt: timestamp,
           action: action,
@@ -190,7 +191,7 @@ class ProgressService {
       }
 
       // Log the action
-      await airtableService.updateUserProgress(customerId, `action_${Date.now()}`, {
+      await supabaseDataService.updateUserProgress(customerId, `action_${Date.now()}`, {
         action: action,
         timestamp: timestamp,
         metadata: metadata,

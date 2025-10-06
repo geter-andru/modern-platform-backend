@@ -1,4 +1,5 @@
-import airtableService from '../services/airtableService.js';
+import supabaseDataService from '../services/supabaseDataService.js';
+import airtableService from '../services/airtableService.js'; // Keep as fallback
 import logger from '../utils/logger.js';
 
 const exportController = {
@@ -10,7 +11,7 @@ const exportController = {
       
       logger.info(`Exporting data for customer ${customerId} in format ${format}`);
       
-      const customer = await airtableService.getCustomerById(customerId);
+      const customer = await supabaseDataService.getCustomerById(customerId);
       
       if (!customer) {
         return res.status(404).json({
@@ -64,7 +65,7 @@ const exportController = {
 
       // Include progress data if requested
       if (dataTypes.includes('progress')) {
-        const progressData = await airtableService.getUserProgress(customerId);
+        const progressData = await supabaseDataService.getUserProgress(customerId);
         exportData.data.progress = progressData;
       }
 
@@ -125,7 +126,7 @@ const exportController = {
       logger.info(`Fetching export history for customer ${customerId}`);
       
       // Get user progress data related to exports
-      const progressData = await airtableService.getUserProgress(customerId, 'Export');
+      const progressData = await supabaseDataService.getUserProgress(customerId);
       
       res.status(200).json({
         success: true,
@@ -147,7 +148,7 @@ const exportController = {
     try {
       const { customerId, format, options } = req.body;
       
-      const customer = await airtableService.getCustomerById(customerId);
+      const customer = await supabaseDataService.getCustomerById(customerId);
       if (!customer) {
         return res.status(404).json({
           success: false,
@@ -175,7 +176,7 @@ const exportController = {
       }
 
       // Update usage tracking
-      await airtableService.updateCustomer(customerId, {
+      await supabaseDataService.updateCustomer(customerId, {
         'Usage Count': (customer.usageCount || 0) + 1,
         'Last Accessed': new Date().toISOString()
       });
@@ -206,7 +207,7 @@ const exportController = {
     try {
       const { customerId, format, options } = req.body;
       
-      const customer = await airtableService.getCustomerById(customerId);
+      const customer = await supabaseDataService.getCustomerById(customerId);
       if (!customer) {
         return res.status(404).json({
           success: false,
@@ -271,7 +272,7 @@ const exportController = {
     try {
       const { customerId, format, sections, options } = req.body;
       
-      const customer = await airtableService.getCustomerById(customerId);
+      const customer = await supabaseDataService.getCustomerById(customerId);
       if (!customer) {
         return res.status(404).json({
           success: false,
@@ -401,7 +402,7 @@ const exportController = {
     try {
       const { customerId, businessCaseId, format } = req.body;
       
-      const customer = await airtableService.getCustomerById(customerId);
+      const customer = await supabaseDataService.getCustomerById(customerId);
       if (!customer) {
         return res.status(404).json({
           success: false,

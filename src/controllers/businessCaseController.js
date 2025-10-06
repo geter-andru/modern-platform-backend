@@ -1,4 +1,5 @@
-import airtableService from '../services/airtableService.js';
+import supabaseDataService from '../services/supabaseDataService.js';
+import airtableService from '../services/airtableService.js'; // Keep as fallback
 import logger from '../utils/logger.js';
 
 const businessCaseController = {
@@ -19,7 +20,7 @@ const businessCaseController = {
       logger.info(`Generating ${caseType} business case for customer ${customerId}`);
 
       // Get existing customer data for context
-      const customer = await airtableService.getCustomerById(customerId);
+      const customer = await supabaseDataService.getCustomerById(customerId);
       if (!customer) {
         return res.status(404).json({
           success: false,
@@ -143,14 +144,14 @@ const businessCaseController = {
       };
 
       // Save business case to customer record
-      await airtableService.updateCustomer(customerId, {
+      await supabaseDataService.updateCustomer(customerId, {
         'Business Case Content': JSON.stringify(businessCase),
         'Content Status': 'Ready',
         'Last Accessed': new Date().toISOString()
       });
 
       // Create user progress record
-      await airtableService.createUserProgress(customerId, 'Business Case Builder', {
+      await supabaseDataService.updateUserProgress(customerId, 'business_case', {
         caseType,
         industry,
         companySize,
@@ -177,8 +178,8 @@ const businessCaseController = {
       const { customerId } = req.params;
       
       logger.info(`Fetching business case for customer ${customerId}`);
-      
-      const customer = await airtableService.getCustomerById(customerId);
+
+      const customer = await supabaseDataService.getCustomerById(customerId);
       
       if (!customer) {
         return res.status(404).json({
@@ -217,8 +218,8 @@ const businessCaseController = {
   async customizeBusinessCase(req, res) {
     try {
       const { customerId, businessCaseId, customizations } = req.body;
-      
-      const customer = await airtableService.getCustomerById(customerId);
+
+      const customer = await supabaseDataService.getCustomerById(customerId);
       if (!customer) {
         return res.status(404).json({
           success: false,
@@ -254,8 +255,8 @@ const businessCaseController = {
       });
 
       businessCases[businessCaseId] = businessCase;
-      
-      await airtableService.updateCustomer(customerId, {
+
+      await supabaseDataService.updateCustomer(customerId, {
         'Business Case Content': JSON.stringify(businessCases)
       });
 
@@ -279,8 +280,8 @@ const businessCaseController = {
   async saveBusinessCase(req, res) {
     try {
       const { customerId, businessCase } = req.body;
-      
-      const customer = await airtableService.getCustomerById(customerId);
+
+      const customer = await supabaseDataService.getCustomerById(customerId);
       if (!customer) {
         return res.status(404).json({
           success: false,
@@ -305,7 +306,7 @@ const businessCaseController = {
         createdAt: new Date().toISOString()
       };
 
-      await airtableService.updateCustomer(customerId, {
+      await supabaseDataService.updateCustomer(customerId, {
         'Business Case Content': JSON.stringify(businessCases)
       });
 
@@ -327,8 +328,8 @@ const businessCaseController = {
   async exportBusinessCase(req, res) {
     try {
       const { customerId, businessCaseId, format } = req.body;
-      
-      const customer = await airtableService.getCustomerById(customerId);
+
+      const customer = await supabaseDataService.getCustomerById(customerId);
       if (!customer) {
         return res.status(404).json({
           success: false,
@@ -426,8 +427,8 @@ const businessCaseController = {
   async getBusinessCaseHistory(req, res) {
     try {
       const { customerId } = req.params;
-      
-      const customer = await airtableService.getCustomerById(customerId);
+
+      const customer = await supabaseDataService.getCustomerById(customerId);
       if (!customer) {
         return res.status(404).json({
           success: false,
