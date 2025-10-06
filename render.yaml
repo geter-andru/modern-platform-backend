@@ -25,7 +25,7 @@ services:
         value: https://platform.andru-ai.com
       - key: ANTHROPIC_API_KEY
         sync: false  # Set this manually in Render dashboard
-      - key: NEXT_PUBLIC_SUPABASE_URL
+      - key: SUPABASE_URL
         value: https://molcqjsqtjbfclasynpg.supabase.co
       - key: SUPABASE_SERVICE_ROLE_KEY
         sync: false  # Set this manually in Render dashboard
