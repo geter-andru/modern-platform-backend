@@ -1,5 +1,4 @@
 import supabaseDataService from '../services/supabaseDataService.js';
-import airtableService from '../services/airtableService.js'; // Keep as fallback during migration
 import aiService from '../services/aiService.js';
 import makeService from '../services/makeService.js';
 import logger from '../utils/logger.js';
@@ -216,6 +215,137 @@ const customerController = {
       res.status(500).json({
         success: false,
         error: 'ICP generation failed',
+        details: error.message
+      });
+    }
+  },
+
+  // Save product details
+  async saveProduct(req, res) {
+    try {
+      const { productData, customerId } = req.body;
+
+      if (!customerId) {
+        return res.status(400).json({
+          success: false,
+          error: 'customerId is required'
+        });
+      }
+
+      if (!productData) {
+        return res.status(400).json({
+          success: false,
+          error: 'productData is required'
+        });
+      }
+
+      logger.info(`Saving product details for user ${customerId}`);
+
+      // Upsert product to product_details table
+      const savedProduct = await supabaseDataService.upsertProductDetails(customerId, productData);
+
+      res.status(200).json({
+        success: true,
+        data: savedProduct
+      });
+    } catch (error) {
+      logger.error('Error saving product:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to save product',
+        details: error.message
+      });
+    }
+  },
+
+  // Get product history
+  async getProductHistory(req, res) {
+    try {
+      const { customerId } = req.query;
+
+      if (!customerId) {
+        return res.status(400).json({
+          success: false,
+          error: 'customerId is required'
+        });
+      }
+
+      logger.info(`Fetching product history for user ${customerId}`);
+
+      // Get all products from product_details table
+      const products = await supabaseDataService.getProductDetailsByUserId(customerId);
+
+      // Transform to match frontend expected format
+      const history = products.map(product => ({
+        id: product.id,
+        productName: product.product_name,
+        productDescription: product.product_description,
+        distinguishingFeature: product.distinguishing_feature,
+        businessModel: product.business_model,
+        createdAt: product.created_at
+      }));
+
+      res.status(200).json({
+        success: true,
+        data: history
+      });
+    } catch (error) {
+      logger.error('Error getting product history:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to get product history',
+        details: error.message
+      });
+    }
+  },
+
+  // Get current user's product
+  async getCurrentProduct(req, res) {
+    try {
+      const customerId = req.user?.id || req.user?.customerId;
+
+      if (!customerId) {
+        return res.status(401).json({
+          success: false,
+          error: 'User not authenticated'
+        });
+      }
+
+      logger.info(`Fetching current product for user ${customerId}`);
+
+      // Get primary product from product_details table
+      const product = await supabaseDataService.getPrimaryProductDetails(customerId);
+
+      if (!product) {
+        return res.status(200).json({
+          success: true,
+          data: null
+        });
+      }
+
+      // Transform to match frontend expected format
+      const productData = {
+        id: product.id,
+        productName: product.product_name,
+        productDescription: product.product_description,
+        distinguishingFeature: product.distinguishing_feature,
+        businessModel: product.business_model,
+        industry: product.industry,
+        targetMarket: product.target_market,
+        valueProposition: product.value_proposition,
+        isPrimary: product.is_primary,
+        createdAt: product.created_at
+      };
+
+      res.status(200).json({
+        success: true,
+        data: productData
+      });
+    } catch (error) {
+      logger.error('Error getting current product:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to get current product',
         details: error.message
       });
     }

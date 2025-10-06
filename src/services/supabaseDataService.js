@@ -273,6 +273,150 @@ class SupabaseDataService {
   }
 
   /**
+   * Create product details for a user
+   * @param {string} userId - User ID (UUID from auth.users)
+   * @param {Object} productData - Product information
+   * @returns {Object} Created product details
+   */
+  async createProductDetails(userId, productData) {
+    try {
+      const { data, error } = await supabase
+        .from('product_details')
+        .insert({
+          user_id: userId,
+          product_name: productData.productName,
+          product_description: productData.productDescription,
+          distinguishing_feature: productData.distinguishingFeature,
+          business_model: productData.businessModel,
+          industry: productData.industry || null,
+          target_market: productData.targetMarket || null,
+          value_proposition: productData.valueProposition || null,
+          is_primary: productData.isPrimary || true, // First product defaults to primary
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .select()
+        .single();
+
+      if (error) {
+        throw error;
+      }
+
+      logger.info(`Product details created for user ${userId}`);
+      return data;
+    } catch (error) {
+      logger.error(`Error creating product details for user ${userId}:`, error);
+      throw new Error('Failed to create product details: ' + error.message);
+    }
+  }
+
+  /**
+   * Get product details by user ID
+   * @param {string} userId - User ID (UUID from auth.users)
+   * @returns {Array} Array of product details for the user
+   */
+  async getProductDetailsByUserId(userId) {
+    try {
+      const { data, error } = await supabase
+        .from('product_details')
+        .select('*')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        throw error;
+      }
+
+      logger.info(`Retrieved ${data?.length || 0} products for user ${userId}`);
+      return data || [];
+    } catch (error) {
+      logger.error(`Error getting product details for user ${userId}:`, error);
+      throw new Error('Failed to get product details: ' + error.message);
+    }
+  }
+
+  /**
+   * Get primary product for a user
+   * @param {string} userId - User ID (UUID from auth.users)
+   * @returns {Object|null} Primary product details or null
+   */
+  async getPrimaryProductDetails(userId) {
+    try {
+      const { data, error} = await supabase
+        .from('product_details')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('is_primary', true)
+        .maybeSingle();
+
+      if (error) {
+        throw error;
+      }
+
+      if (!data) {
+        logger.info(`No primary product found for user ${userId}`);
+        return null;
+      }
+
+      logger.info(`Retrieved primary product for user ${userId}`);
+      return data;
+    } catch (error) {
+      logger.error(`Error getting primary product for user ${userId}:`, error);
+      throw new Error('Failed to get primary product: ' + error.message);
+    }
+  }
+
+  /**
+   * Update or upsert product details (used when saving product form)
+   * @param {string} userId - User ID (UUID from auth.users)
+   * @param {Object} productData - Product information
+   * @returns {Object} Created/updated product details
+   */
+  async upsertProductDetails(userId, productData) {
+    try {
+      // Check if user has existing products
+      const existingProducts = await this.getProductDetailsByUserId(userId);
+      const isPrimary = existingProducts.length === 0 ? true : (productData.isPrimary || false);
+
+      const upsertData = {
+        user_id: userId,
+        product_name: productData.productName,
+        product_description: productData.productDescription,
+        distinguishing_feature: productData.distinguishingFeature,
+        business_model: productData.businessModel,
+        industry: productData.industry || null,
+        target_market: productData.targetMarket || null,
+        value_proposition: productData.valueProposition || null,
+        is_primary: isPrimary,
+        updated_at: new Date().toISOString(),
+      };
+
+      // If productId is provided, update specific product
+      if (productData.id) {
+        upsertData.id = productData.id;
+      }
+
+      const { data, error } = await supabase
+        .from('product_details')
+        .upsert(upsertData, {
+          onConflict: productData.id ? 'id' : undefined
+        })
+        .select()
+        .single();
+
+      if (error) {
+        throw error;
+      }
+
+      logger.info(`Product details upserted for user ${userId}`);
+      return data;
+    } catch (error) {
+      logger.error(`Error upserting product details for user ${userId}:`, error);
+      throw new Error('Failed to upsert product details: ' + error.message);
+    }
+  }
+
+  /**
    * Transform Airtable field names to Supabase column names
    * @private
    * @param {Object} airtableData - Data with Airtable field names (spaces)

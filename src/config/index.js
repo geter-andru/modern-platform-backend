@@ -29,7 +29,7 @@ const config = {
     anonKey: process.env.SUPABASE_ANON_KEY,
   },
 
-  // Airtable Configuration
+  // Airtable Configuration (DEPRECATED - kept for legacy compatibility)
   airtable: {
     apiKey: process.env.AIRTABLE_API_KEY,
     baseId: process.env.AIRTABLE_BASE_ID,
@@ -72,14 +72,20 @@ const config = {
 
 // Validation for required environment variables
 const requiredEnvVars = [
-  'AIRTABLE_API_KEY',
-  'AIRTABLE_BASE_ID',
+  'SUPABASE_URL',
+  'SUPABASE_SERVICE_ROLE_KEY',
 ];
 
+// Validate required variables
 for (const envVar of requiredEnvVars) {
   if (!process.env[envVar]) {
     throw new Error(`Required environment variable ${envVar} is not set`);
   }
+}
+
+// Warn if Airtable variables are missing (legacy fallback)
+if (!process.env.AIRTABLE_API_KEY || !process.env.AIRTABLE_BASE_ID) {
+  console.warn('⚠️  Airtable configuration missing - legacy fallback disabled');
 }
 
 export default config;
