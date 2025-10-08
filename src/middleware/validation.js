@@ -1,12 +1,12 @@
 import Joi from 'joi';
 
 // Customer ID validation schema
-// Updated for Supabase migration - accepts both legacy CUST_XXX and UUID formats
+// Updated for Supabase migration - only accepts UUID format
 const customerIdSchema = Joi.string()
-  .pattern(/^(CUST_\d+|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i)
+  .uuid()
   .required()
   .messages({
-    'string.pattern.base': 'Customer ID must be in format CUST_XXX or valid UUID',
+    'string.guid': 'Customer ID must be a valid UUID',
     'any.required': 'Customer ID is required'
   });
 
