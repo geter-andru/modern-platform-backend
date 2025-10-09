@@ -146,9 +146,12 @@ const customerController = {
   async generateAIICP(req, res) {
     try {
       const { customerId } = req.params;
-      const { industry, companySize, currentChallenges, goals, triggerAutomation } = req.body;
+      const { industry, companySize, currentChallenges, goals, triggerAutomation, productInfo } = req.body;
 
-      logger.info(`Generating AI-powered ICP for customer ${customerId}`);
+      logger.info(`Generating AI-powered ICP for customer ${customerId}`, { 
+        hasProductInfo: !!productInfo,
+        productName: productInfo?.name || 'Not provided'
+      });
 
       // Get customer data
       const customer = await supabaseDataService.getCustomerById(customerId);
@@ -164,7 +167,8 @@ const customerController = {
         industry: industry || 'Technology',
         companySize: companySize || 'medium',
         currentChallenges: currentChallenges || ['scalability', 'efficiency'],
-        goals: goals || ['increase revenue', 'improve operations']
+        goals: goals || ['increase revenue', 'improve operations'],
+        productInfo: productInfo || null
       };
 
       // Generate ICP using AI

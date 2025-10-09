@@ -122,7 +122,19 @@ class AIService {
    * Build ICP analysis prompt
    */
   buildICPPrompt(customerData, businessContext) {
+    // Extract product information from businessContext
+    const productInfo = businessContext.productInfo || {};
+    const productContext = productInfo.name ? `
+Product Information:
+- Product Name: ${productInfo.name}
+- Product Description: ${productInfo.description || 'Not specified'}
+- Distinguishing Feature: ${productInfo.distinguishingFeature || 'Not specified'}
+- Business Model: ${productInfo.businessModel || 'Not specified'}
+` : '';
+
     return `You are an expert B2B sales strategist. Generate a comprehensive Ideal Customer Profile (ICP) analysis based on the following information:
+
+${productContext}
 
 Customer Information:
 - Company: ${customerData.company || 'Not specified'}
@@ -131,13 +143,28 @@ Customer Information:
 - Current Challenges: ${businessContext.currentChallenges?.join(', ') || 'Scalability, efficiency, growth'}
 - Goals: ${businessContext.goals?.join(', ') || 'Increase revenue, improve operations'}
 
-Please provide a structured ICP analysis with:
+Please analyze the ideal customer profile by considering these 10 criteria in detail:
 
-1. Title and Description
-2. Top 3-5 Customer Segments (with names, scores 1-100, and specific criteria)
-3. Key Buying Indicators (5-8 indicators)
-4. Red Flags to avoid (3-5 red flags)
-5. Rating Criteria (4-5 criteria with weights and descriptions)
+1. Firmographics: Company size, industry, geographic location, company structure, growth stage
+2. Technographics: Technology stack, sophistication level, infrastructure preferences
+3. Budget and Financial Considerations: Budget range, financial health, spending patterns
+4. Pain Points and Challenges: Business problems solved, operational inefficiencies addressed
+5. Goals and Objectives: Short/long-term objectives, growth targets, strategic initiatives
+6. Decision-Making Process: Key decision-makers, buying committee, sales cycle, evaluation methods
+7. Behavioral Characteristics: Buying behavior, brand preferences, risk tolerance, innovation appetite
+8. Value Drivers: Solution aspects valued most, ROI expectations, success metrics
+9. Engagement Preferences: Communication channels, content habits, marketing approaches
+10. Current Solution Landscape: Existing solutions, satisfaction levels, solution gaps
+
+Based on this analysis, provide a structured ICP analysis with:
+
+1. Title and Description (tailored to the specific product)
+2. Top 3-5 Customer Segments (with names, scores 1-100, and specific criteria that align with the product's value proposition)
+3. Key Buying Indicators (5-8 indicators that signal readiness for this specific product)
+4. Red Flags to avoid (3-5 red flags that indicate poor fit for this product)
+5. Rating Criteria (4-5 criteria with weights and descriptions specific to this product's ideal customers)
+
+Focus on how the product's distinguishing features and business model influence the ideal customer profile. Consider the specific pain points this product solves and the type of companies that would benefit most from it.
 
 Format your response as valid JSON with the following structure:
 {
