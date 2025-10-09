@@ -456,7 +456,7 @@ class SupabaseDataService {
   }
 
   /**
-   * Log customer action to customer_actions table
+   * Log platform action to platform_actions table
    * @param {string} userId - Supabase user ID
    * @param {string} actionType - Type of action performed
    * @param {Object} metadata - Additional action metadata
@@ -465,12 +465,14 @@ class SupabaseDataService {
   async logCustomerAction(userId, actionType, metadata = {}) {
     try {
       const { data, error } = await supabase
-        .from('customer_actions')
+        .from('platform_actions')
         .insert({
           user_id: userId,
           action_type: actionType,
           action_description: metadata.description || actionType,
-          action_title: metadata.title || actionType,
+          page_context: metadata.page || metadata.pageContext || null,
+          tool_context: metadata.tool || metadata.toolContext || null,
+          session_id: metadata.sessionId || null,
           action_metadata: metadata,
           created_at: new Date().toISOString(),
         })
@@ -481,11 +483,11 @@ class SupabaseDataService {
         throw error;
       }
 
-      logger.info(`Customer action logged: ${actionType} for user ${userId}`);
+      logger.info(`Platform action logged: ${actionType} for user ${userId}`);
       return data;
     } catch (error) {
-      logger.error(`Error logging customer action for ${userId}:`, error);
-      throw new Error('Failed to log customer action: ' + error.message);
+      logger.error(`Error logging platform action for ${userId}:`, error);
+      throw new Error('Failed to log platform action: ' + error.message);
     }
   }
 }
