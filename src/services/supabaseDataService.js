@@ -454,6 +454,40 @@ class SupabaseDataService {
 
     return supabaseData;
   }
+
+  /**
+   * Log customer action to customer_actions table
+   * @param {string} userId - Supabase user ID
+   * @param {string} actionType - Type of action performed
+   * @param {Object} metadata - Additional action metadata
+   * @returns {Object} Created action record
+   */
+  async logCustomerAction(userId, actionType, metadata = {}) {
+    try {
+      const { data, error } = await supabase
+        .from('customer_actions')
+        .insert({
+          user_id: userId,
+          action_type: actionType,
+          action_description: metadata.description || actionType,
+          action_title: metadata.title || actionType,
+          action_metadata: metadata,
+          created_at: new Date().toISOString(),
+        })
+        .select()
+        .single();
+
+      if (error) {
+        throw error;
+      }
+
+      logger.info(`Customer action logged: ${actionType} for user ${userId}`);
+      return data;
+    } catch (error) {
+      logger.error(`Error logging customer action for ${userId}:`, error);
+      throw new Error('Failed to log customer action: ' + error.message);
+    }
+  }
 }
 
 // Create singleton instance

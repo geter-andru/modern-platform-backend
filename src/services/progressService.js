@@ -180,7 +180,7 @@ class ProgressService {
     try {
       const timestamp = new Date().toISOString();
 
-      // Update milestones
+      // Update milestones in user_progress table
       for (const milestone of triggeredMilestones) {
         await supabaseDataService.updateUserProgress(customerId, milestone.id, {
           completed: true,
@@ -190,12 +190,11 @@ class ProgressService {
         });
       }
 
-      // Log the action
-      await supabaseDataService.updateUserProgress(customerId, `action_${Date.now()}`, {
-        action: action,
-        timestamp: timestamp,
-        metadata: metadata,
-        milestonesTriggered: triggeredMilestones.map(m => m.id)
+      // Log the action in customer_actions table (NOT user_progress)
+      await supabaseDataService.logCustomerAction(customerId, action, {
+        ...metadata,
+        milestonesTriggered: triggeredMilestones.map(m => m.id),
+        timestamp: timestamp
       });
 
       // Get updated progress
