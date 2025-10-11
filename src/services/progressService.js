@@ -1,6 +1,6 @@
 import supabaseDataService from './supabaseDataService.js';
 import airtableService from './airtableService.js'; // Keep as fallback during migration
-import makeService from './makeService.js';
+// REMOVED: makeService - Make.com integration deprecated (see archive/make-com-integration/)
 import logger from '../utils/logger.js';
 
 class ProgressService {
@@ -225,21 +225,14 @@ class ProgressService {
           totalMilestones: progressData.totalMilestones
         };
 
-        // Trigger Make.com automation
-        await makeService.triggerProgressUpdate(customer, progressUpdate);
+        // REMOVED: Make.com automation (deprecated - modern platform logs directly to Supabase)
+        logger.info(`Progress milestone automation triggered: ${milestone.name}`);
       }
 
-      // If significant progress milestone reached, trigger special automation
+      // If significant progress milestone reached, log special milestone
       if (progressData.completionPercentage >= 50) {
-        const specialUpdate = {
-          milestone: 'Halfway Point Reached',
-          achievement: 'Customer has completed 50% of the revenue intelligence journey',
-          impact: 'Strong engagement and progress towards revenue goals',
-          nextSteps: ['Focus on business case refinement', 'Prepare for results delivery'],
-          completionPercentage: progressData.completionPercentage
-        };
-
-        await makeService.triggerProgressUpdate(customer, specialUpdate);
+        // REMOVED: Make.com automation (deprecated)
+        logger.info('Halfway point milestone reached - logging to Supabase');
       }
 
     } catch (error) {

@@ -1,6 +1,6 @@
 import supabaseDataService from '../services/supabaseDataService.js';
 import aiService from '../services/aiService.js';
-import makeService from '../services/makeService.js';
+// REMOVED: makeService - Make.com integration deprecated (see archive/make-com-integration/)
 import logger from '../utils/logger.js';
 
 const customerController = {
@@ -197,10 +197,10 @@ const customerController = {
         'Last Accessed': new Date().toISOString()
       });
 
-      // Trigger automation workflow if requested
+      // REMOVED: Make.com automation (deprecated - using direct AI service now)
+      // Modern platform uses direct Claude AI integration via aiService
       if (triggerAutomation) {
-        const automationResult = await makeService.triggerICPAnalysis(customer);
-        logger.info(`Automation triggered: ${automationResult.success}`);
+        logger.info('Direct AI generation completed (Make.com automation deprecated)');
       }
 
       res.status(200).json({

@@ -5,7 +5,8 @@ import costCalculatorController from '../controllers/costCalculatorController.js
 import businessCaseController from '../controllers/businessCaseController.js';
 import exportController from '../controllers/exportController.js';
 import authRoutes from './auth.js';
-import webhookRoutes from './webhooks.js';
+// REMOVED: webhookRoutes - Make.com integration deprecated (see archive/make-com-integration/)
+// import webhookRoutes from './webhooks.js';
 import progressRoutes from './progress.js';
 import { validate, paramSchemas, costCalculationSchema, businessCaseSchema } from '../middleware/validation.js';
 import { strictRateLimiter } from '../middleware/security.js';
@@ -20,8 +21,8 @@ router.get('/health/detailed', healthController.checkHealthDetailed);
 // Authentication routes (public)
 router.use('/api/auth', authRoutes);
 
-// Webhook routes (mixed auth)
-router.use('/api/webhooks', webhookRoutes);
+// REMOVED: Webhook routes (Make.com deprecated - direct AI integration now)
+// router.use('/api/webhooks', webhookRoutes);
 
 // Progress tracking routes (requires auth)
 router.use('/api/progress', progressRoutes);
@@ -284,13 +285,7 @@ router.get('/api/docs', (req, res) => {
           'DELETE /api/export/:exportId': 'Delete export',
           'GET /api/export/history/:customerId': 'Get export history'
         },
-        webhooks: {
-          'POST /api/webhooks/incoming': 'Handle incoming webhook from Make.com',
-          'POST /api/webhooks/trigger': 'Trigger automation workflow',
-          'GET /api/webhooks/test/:webhookType': 'Test webhook connectivity',
-          'GET /api/webhooks/status': 'Get automation status',
-          'GET /api/webhooks/health': 'Webhook service health check'
-        },
+        // REMOVED: webhooks endpoints (Make.com integration deprecated)
         auth: {
           'POST /api/auth/token': 'Generate JWT token',
           'POST /api/auth/refresh': 'Refresh JWT token',
