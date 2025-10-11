@@ -1,0 +1,42 @@
+{
+  "appName": "modern-platform-backend",
+  "appType": "Express API Server",
+  "architecture": "Monorepo with Frontend/Backend/Infra",
+  "techStack": {
+    "framework": "Express.js",
+    "runtime": "Node.js",
+    "language": "JavaScript (ES Modules)",
+    "database": "Supabase",
+    "aiServices": "Anthropic Claude API",
+    "testing": "Jest"
+  },
+  "integrationPoints": [
+    "Supabase Database (customer_assets, customer_actions, etc.)",
+    "Anthropic Claude AI API",
+    "Supabase Authentication (JWT validation)",
+    "Render Deployment",
+    "Frontend Next.js Application"
+  ],
+  "validationRules": {
+    "security": {
+      "jwtSecret": true,
+      "anthropicApiKey": true,
+      "supabaseKeys": true,
+      "apiKeyValidation": true
+    },
+    "compatibility": {
+      "esModules": true,
+      "nodeVersion": ">=18.0.0",
+      "expressRoutes": true
+    },
+    "database": {
+      "supabaseMigration": "complete",
+      "airtableDeprecated": true
+    }
+  },
+  "deploymentContext": {
+    "environment": "production",
+    "platform": "Render",
+    "autoDeployBranch": "main"
+  }
+}

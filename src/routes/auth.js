@@ -28,19 +28,10 @@ router.get('/verify',
   authController.verifyToken
 );
 
-// Generate customer access token
-router.post('/customer-token',
-  customerRateLimit(5, 60 * 60 * 1000), // 5 requests per hour
-  validate(authSchemas.generateCustomerToken),
-  authController.generateCustomerToken
-);
-
-// Revoke customer access token
-router.delete('/customer-token/:customerId',
-  customerRateLimit(10, 60 * 60 * 1000), // 10 requests per hour
-  validate(authSchemas.customerId, 'params'),
-  authController.revokeCustomerToken
-);
+// REMOVED (2025-10-11): Customer Access Token endpoints deprecated
+// Rationale: Redundant with JWT, added database overhead, simplified to 2-method auth
+// - POST /customer-token (generate customer access token)
+// - DELETE /customer-token/:customerId (revoke customer access token)
 
 // Generate API key
 router.post('/api-key',

@@ -3,8 +3,11 @@ import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
 import crypto from 'crypto';
 import config from '../config/index.js';
-import airtableService from './airtableService.js';
+import supabaseDataService from './supabaseDataService.js';
 import logger from '../utils/logger.js';
+
+// MIGRATION NOTE (2025-10-11): Replaced airtableService with supabaseDataService
+// Modern platform uses 100% Supabase for customer data storage
 
 class AuthService {
   constructor() {
@@ -69,7 +72,7 @@ class AuthService {
   async generateCustomerAccessToken(customerId) {
     try {
       // Verify customer exists
-      const customer = await airtableService.getCustomerById(customerId);
+      const customer = await supabaseDataService.getCustomerById(customerId);
       if (!customer) {
         throw new Error('Customer not found');
       }
@@ -104,7 +107,7 @@ class AuthService {
    */
   async validateCustomerAccessToken(customerId, providedToken) {
     try {
-      const customer = await airtableService.getCustomerById(customerId);
+      const customer = await supabaseDataService.getCustomerById(customerId);
       if (!customer || !customer.accessToken) {
         return { valid: false, reason: 'No access token found for customer' };
       }
@@ -198,7 +201,7 @@ class AuthService {
    */
   async getCustomerPermissions(customerId) {
     try {
-      const customer = await airtableService.getCustomerById(customerId);
+      const customer = await supabaseDataService.getCustomerById(customerId);
       
       if (!customer) {
         return { permissions: [] };

@@ -286,12 +286,12 @@ router.get('/api/docs', (req, res) => {
           'GET /api/export/history/:customerId': 'Get export history'
         },
         // REMOVED: webhooks endpoints (Make.com integration deprecated)
+        // REMOVED: customer-token endpoints (2025-10-11 - redundant, simplified to JWT + API Key)
         auth: {
           'POST /api/auth/token': 'Generate JWT token',
           'POST /api/auth/refresh': 'Refresh JWT token',
           'GET /api/auth/verify': 'Verify JWT token',
-          'POST /api/auth/customer-token': 'Generate customer access token',
-          'POST /api/auth/api-key': 'Generate API key',
+          'POST /api/auth/api-key': 'Generate API key for service authentication',
           'GET /api/auth/permissions': 'Get customer permissions',
           'GET /api/auth/status': 'Authentication service status'
         },
