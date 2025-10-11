@@ -221,8 +221,8 @@ const authController = {
       const isServiceAccount = customerId.startsWith('service_');
 
       if (!isServiceAccount) {
-        // Verify customer exists for regular customers
-        const customer = await airtableService.getCustomerById(customerId);
+        // Verify customer exists for regular customers (Supabase customer_assets table)
+        const customer = await supabaseDataService.getCustomerById(customerId);
         if (!customer) {
           return res.status(404).json({
             success: false,
@@ -247,7 +247,11 @@ const authController = {
       });
     } catch (error) {
       logger.error(`Error generating API key: ${error.message}`);
-      throw error;
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to generate API key',
+        details: error.message
+      });
     }
   },
 
