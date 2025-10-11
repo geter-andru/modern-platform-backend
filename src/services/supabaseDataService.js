@@ -31,8 +31,9 @@ class SupabaseDataService {
       }
 
       // Transform Supabase data to match Airtable response format
+      // Note: customer_assets uses customer_id as primary key (no separate id column)
       return {
-        id: data.id,
+        id: data.customer_id,  // Use customer_id as id for compatibility
         customerId: data.customer_id,
         customerName: data.customer_name,
         email: data.email,
