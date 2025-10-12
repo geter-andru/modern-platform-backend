@@ -118,21 +118,53 @@ const exportController = {
     }
   },
 
-  // Get export status/history
+  // Get export history from Supabase database
   async getExportHistory(req, res) {
     try {
       const { customerId } = req.params;
-      
-      logger.info(`Fetching export history for customer ${customerId}`);
-      
-      // Get user progress data related to exports
-      const progressData = await supabaseDataService.getUserProgress(customerId);
-      
+
+      logger.info(`Fetching export history from database for customer ${customerId}`);
+
+      // Query export_history table from Supabase
+      const { createClient } = await import('@supabase/supabase-js');
+      const supabase = createClient(
+        process.env.SUPABASE_URL,
+        process.env.SUPABASE_SERVICE_ROLE_KEY
+      );
+
+      const { data: exportHistory, error } = await supabase
+        .from('export_history')
+        .select('*')
+        .eq('user_id', customerId)
+        .order('created_at', { ascending: false })
+        .limit(50);
+
+      if (error) {
+        logger.error(`Supabase error fetching export history:`, error);
+        return res.status(500).json({
+          success: false,
+          error: error.message || 'Failed to fetch export history'
+        });
+      }
+
+      // Transform database rows to response format
+      const exports = (exportHistory || []).map(row => ({
+        exportId: row.id,
+        status: row.status || 'completed',
+        downloadUrl: row.download_url,
+        fileSize: row.file_size,
+        expiresAt: row.expires_at,
+        format: row.format || row.export_format,
+        type: row.type || row.export_type,
+        generatedAt: row.generated_at || row.created_at
+      }));
+
       res.status(200).json({
         success: true,
         data: {
           customerId,
-          exports: progressData,
+          exports,
+          totalCount: exports.length,
           availableFormats: ['json', 'csv', 'pdf', 'docx'],
           availableData: ['icp', 'cost_calculator', 'business_case', 'progress']
         }
@@ -337,30 +369,57 @@ const exportController = {
     }
   },
 
-  // Get export status
+  // Get export status from Supabase database
   async getExportStatus(req, res) {
     try {
       const { exportId } = req.params;
-      
-      // For demo purposes, simulate different statuses
-      const statuses = ['completed', 'processing', 'pending'];
-      const randomStatus = statuses[Math.floor(Math.random() * statuses.length)];
-      
-      if (exportId === 'exp_nonexistent') {
+
+      logger.info(`Fetching export status from database for exportId: ${exportId}`);
+
+      // Query export_history table from Supabase
+      const { createClient } = await import('@supabase/supabase-js');
+      const supabase = createClient(
+        process.env.SUPABASE_URL,
+        process.env.SUPABASE_SERVICE_ROLE_KEY
+      );
+
+      const { data: exportRecord, error } = await supabase
+        .from('export_history')
+        .select('*')
+        .eq('id', exportId)
+        .single();
+
+      if (error || !exportRecord) {
+        logger.error(`Export not found or Supabase error:`, error);
         return res.status(404).json({
           success: false,
           error: 'Export not found'
         });
       }
 
+      // Calculate progress based on status
+      const progressMap = {
+        'completed': 100,
+        'processing': 50,
+        'pending': 10,
+        'failed': 0
+      };
+
       const response = {
         success: true,
         data: {
-          exportId,
-          status: randomStatus,
-          progress: randomStatus === 'completed' ? 100 : Math.floor(Math.random() * 90) + 10,
-          downloadUrl: `https://api.hs-platform.com/exports/${exportId}`,
-          expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+          exportId: exportRecord.id,
+          status: exportRecord.status || 'completed',
+          progress: progressMap[exportRecord.status] || 100,
+          downloadUrl: exportRecord.download_url,
+          fileSize: exportRecord.file_size,
+          expiresAt: exportRecord.expires_at,
+          metadata: {
+            format: exportRecord.format || exportRecord.export_format,
+            type: exportRecord.type || exportRecord.export_type,
+            generatedAt: exportRecord.generated_at || exportRecord.created_at,
+            processingTime: exportRecord.processing_time || 0
+          }
         }
       };
 
@@ -371,17 +430,34 @@ const exportController = {
     }
   },
 
-  // Delete export
+  // Delete export from Supabase database
   async deleteExport(req, res) {
     try {
       const { exportId } = req.params;
-      
-      if (exportId === 'exp_nonexistent') {
-        return res.status(404).json({
+
+      logger.info(`Deleting export from database: ${exportId}`);
+
+      // Delete from export_history table in Supabase
+      const { createClient } = await import('@supabase/supabase-js');
+      const supabase = createClient(
+        process.env.SUPABASE_URL,
+        process.env.SUPABASE_SERVICE_ROLE_KEY
+      );
+
+      const { error } = await supabase
+        .from('export_history')
+        .delete()
+        .eq('id', exportId);
+
+      if (error) {
+        logger.error(`Supabase error deleting export:`, error);
+        return res.status(500).json({
           success: false,
-          error: 'Export not found'
+          error: error.message || 'Failed to delete export'
         });
       }
+
+      logger.info(`Export ${exportId} deleted successfully`);
 
       res.status(200).json({
         success: true,
