@@ -48,7 +48,10 @@ const config = {
 
   // Security Configuration
   security: {
-    corsOrigin: process.env.CORS_ORIGIN || 'http://localhost:3000',
+    // Support comma-separated list of CORS origins for multi-environment development
+    corsOrigin: process.env.CORS_ORIGIN
+      ? process.env.CORS_ORIGIN.split(',').map(origin => origin.trim())
+      : ['http://localhost:3000'],
     rateLimit: {
       windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 900000, // 15 minutes
       maxRequests: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 100,
