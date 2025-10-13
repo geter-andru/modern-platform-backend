@@ -1,5 +1,4 @@
 import supabaseDataService from '../services/supabaseDataService.js';
-import airtableService from '../services/airtableService.js'; // Keep as fallback
 import logger from '../utils/logger.js';
 
 const exportController = {

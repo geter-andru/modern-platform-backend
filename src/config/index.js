@@ -29,15 +29,6 @@ const config = {
     anonKey: process.env.SUPABASE_ANON_KEY,
   },
 
-  // Airtable Configuration (DEPRECATED - kept for legacy compatibility)
-  airtable: {
-    apiKey: process.env.AIRTABLE_API_KEY,
-    baseId: process.env.AIRTABLE_BASE_ID,
-    tables: {
-      customerAssets: process.env.AIRTABLE_CUSTOMER_ASSETS_TABLE || 'Customer Assets',
-      userProgress: process.env.AIRTABLE_USER_PROGRESS_TABLE || 'User Progress',
-    },
-  },
 
   // Make.com Webhooks
   webhooks: {
@@ -86,9 +77,5 @@ for (const envVar of requiredEnvVars) {
   }
 }
 
-// Warn if Airtable variables are missing (legacy fallback)
-if (!process.env.AIRTABLE_API_KEY || !process.env.AIRTABLE_BASE_ID) {
-  console.warn('⚠️  Airtable configuration missing - legacy fallback disabled');
-}
 
 export default config;

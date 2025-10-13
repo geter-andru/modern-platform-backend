@@ -1,6 +1,7 @@
 import { jest } from '@jest/globals';
 import request from 'supertest';
 import app from '../src/server.js';
+import { getValidTestUserId2 } from './fixtures/testUsers.js';
 
 describe('AI Integration Tests', () => {
   let accessToken;
@@ -9,7 +10,7 @@ describe('AI Integration Tests', () => {
     // Get access token for testing
     const tokenResponse = await request(app)
       .post('/api/auth/token')
-      .send({ customerId: 'CUST_2' });
+      .send({ customerId: getValidTestUserId2() });
     
     if (tokenResponse.status === 200) {
       accessToken = tokenResponse.body.data.accessToken;

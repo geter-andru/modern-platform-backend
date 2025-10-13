@@ -10,44 +10,83 @@ import logger from '../utils/logger.js';
 
 class SupabaseDataService {
   /**
-   * Get customer by ID
+   * Get customer by ID - checks both auth.users and customer_assets tables
    * @param {string} customerId - Supabase user ID
    * @returns {Object|null} Customer data or null if not found
    */
   async getCustomerById(customerId) {
     try {
-      const { data, error } = await supabase
+      // First, check auth.users table for authentication data
+      const { data: authUser, error: authError } = await supabase.auth.admin.getUserById(customerId);
+      
+      if (authError) {
+        logger.info(`Customer ${customerId} not found in auth.users: ${authError.message}`);
+        return null;
+      }
+
+      if (!authUser.user) {
+        logger.info(`Customer ${customerId} not found in auth.users`);
+        return null;
+      }
+
+      // Then, check customer_assets table for extended customer data
+      const { data: customerAssets, error: assetsError } = await supabase
         .from('customer_assets')
         .select('*')
         .eq('customer_id', customerId)
         .single();
 
-      if (error) {
-        if (error.code === 'PGRST116') { // Not found
-          logger.info(`Customer ${customerId} not found in database`);
-          return null;
-        }
-        throw error;
-      }
+      // Merge auth.users data with customer_assets data
+      const authData = authUser.user;
+      const assetsData = assetsError && assetsError.code === 'PGRST116' ? null : customerAssets;
 
-      // Transform Supabase data to match Airtable response format
-      // Note: customer_assets uses customer_id as primary key (no separate id column)
-      return {
-        id: data.customer_id,  // Use customer_id as id for compatibility
-        customerId: data.customer_id,
-        customerName: data.customer_name,
-        email: data.email,
-        company: data.company,
-        icpContent: data.icp_content,
-        costCalculatorContent: data.cost_calculator_content,
-        businessCaseContent: data.business_case_content,
-        toolAccessStatus: data.tool_access_status,
-        contentStatus: data.content_status,
-        paymentStatus: data.payment_status,
-        usageCount: data.usage_count,
-        lastAccessed: data.last_accessed,
-        createdAt: data.created_at,
+      // Create unified customer object
+      const customer = {
+        // Core identity from auth.users
+        customerId: authData.id,
+        email: authData.email,
+        emailConfirmed: authData.email_confirmed_at ? true : false,
+        createdAt: authData.created_at,
+        lastSignIn: authData.last_sign_in_at,
+        
+        // Extended data from customer_assets (if exists)
+        id: assetsData?.id || null,
+        customerName: assetsData?.customer_name || authData.user_metadata?.full_name || authData.email?.split('@')[0],
+        company: assetsData?.company || authData.user_metadata?.company || null,
+        icpContent: assetsData?.icp_content || null,
+        costCalculatorContent: assetsData?.cost_calculator_content || null,
+        businessCaseContent: assetsData?.business_case_content || null,
+        toolAccessStatus: assetsData?.tool_access_status || 'active',
+        contentStatus: assetsData?.content_status || 'pending',
+        paymentStatus: assetsData?.payment_status || 'free',
+        usageCount: assetsData?.usage_count || 0,
+        lastAccessed: assetsData?.last_accessed || authData.last_sign_in_at,
+        
+        // Additional fields from customer_assets
+        competencyProgress: assetsData?.competency_progress || null,
+        professionalMilestones: assetsData?.professional_milestones || null,
+        dailyObjectives: assetsData?.daily_objectives || null,
+        userPreferences: assetsData?.user_preferences || null,
+        detailedIcpAnalysis: assetsData?.detailed_icp_analysis || null,
+        targetBuyerPersonas: assetsData?.target_buyer_personas || null,
+        developmentPlanActive: assetsData?.development_plan_active || false,
+        competencyLevel: assetsData?.competency_level || null,
+        achievementIds: assetsData?.achievement_ids || null,
+        lastAssessmentDate: assetsData?.last_assessment_date || null,
+        developmentFocus: assetsData?.development_focus || 'balanced',
+        learningVelocity: assetsData?.learning_velocity || null,
+        lastActionDate: assetsData?.last_action_date || null,
+        workflowProgress: assetsData?.workflow_progress || null,
+        usageAnalytics: assetsData?.usage_analytics || null,
+        technicalTranslationData: assetsData?.technical_translation_data || null,
+        stakeholderArsenalData: assetsData?.stakeholder_arsenal_data || null,
+        resourcesLibraryData: assetsData?.resources_library_data || null,
+        gamificationState: assetsData?.gamification_state || null,
+        updatedAt: assetsData?.updated_at || authData.updated_at
       };
+
+      logger.info(`Successfully fetched customer ${customerId} from both auth.users and customer_assets`);
+      return customer;
     } catch (error) {
       logger.error(`Error fetching customer ${customerId}:`, error);
       throw new Error('Failed to fetch customer data: ' + error.message);
@@ -62,21 +101,22 @@ class SupabaseDataService {
    */
   async updateCustomer(customerId, updateData) {
     try {
-      // First check if customer exists
-      const existingCustomer = await this.getCustomerById(customerId);
-      if (!existingCustomer) {
-        throw new Error(`Customer ${customerId} not found`);
-      }
-
       // Transform Airtable field names to Supabase column names
       const supabaseData = this._transformToSupabaseFields(updateData);
 
       // Always update the updated_at timestamp
       supabaseData.updated_at = new Date().toISOString();
 
-      const { data, error } = await supabase
+      // Ensure customer_id is set for upsert
+      supabaseData.customer_id = customerId;
+
+      // Use upsert to create record if it doesn't exist, or update if it does
+      const { data, error} = await supabase
         .from('customer_assets')
-        .update(supabaseData)
+        .upsert(supabaseData, {
+          onConflict: 'customer_id',  // Use customer_id as unique constraint
+          ignoreDuplicates: false      // Update existing records
+        })
         .eq('customer_id', customerId)
         .select()
         .single();
@@ -85,7 +125,7 @@ class SupabaseDataService {
         throw error;
       }
 
-      logger.info(`Customer ${customerId} updated successfully`);
+      logger.info(`Customer ${customerId} updated successfully via upsert`);
       return data;
     } catch (error) {
       logger.error(`Error updating customer ${customerId}:`, error);

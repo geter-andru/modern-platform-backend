@@ -1,6 +1,7 @@
 import { describe, test, expect, beforeEach, jest } from '@jest/globals';
 import request from 'supertest';
 import app from '../src/server.js';
+import { TEST_USERS, getValidTestUserId, getValidTestUserId2, getInvalidTestUserId } from './fixtures/testUsers.js';
 
 describe('Input Validation Tests', () => {
   beforeEach(() => {
@@ -9,18 +10,25 @@ describe('Input Validation Tests', () => {
 
   describe('Customer ID Validation', () => {
     const validCustomerIds = [
-      'CUST_001',
-      'CUST_1234',
-      'CUST_0001',
-      'CUST_9999'
+      getValidTestUserId(),
+      getValidTestUserId2(),
+      TEST_USERS.valid3.id,
+      '550e8400-e29b-41d4-a716-446655440000'  // Another valid UUID
     ];
 
     const invalidCustomerIds = [
+      'CUST_001',           // Old CUST_ format (now invalid)
+      'CUST_1234',          // Old CUST_ format (now invalid)
+      'CUST_0001',          // Old CUST_ format (now invalid)
+      'CUST_9999',          // Old CUST_ format (now invalid)
       'cust_001',           // lowercase
       'CUSTOMER_001',       // wrong prefix
-      'CUST_',              // missing number
+      getValidTestUserId(),              // missing number
       'CUST_abc',           // non-numeric
       'CUST_001_extra',     // extra characters
+      'not-a-uuid',         // Not a UUID
+      '550e8400-e29b-41d4-a716-44665544000',  // Invalid UUID (too short)
+      '550e8400-e29b-41d4-a716-4466554400000', // Invalid UUID (too long)
       '',                   // empty
       '123',                // just numbers
       'CUST 001',           // space

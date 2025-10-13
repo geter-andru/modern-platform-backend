@@ -1,7 +1,6 @@
 import supabaseDataService from '../services/supabaseDataService.js';
-import airtableService from '../services/airtableService.js'; // Keep as fallback
 import aiService from '../services/aiService.js';
-// REMOVED: makeService - Make.com integration deprecated (see archive/make-com-integration/)
+import makeService from '../services/makeService.js';
 import logger from '../utils/logger.js';
 
 const costCalculatorController = {
@@ -382,9 +381,10 @@ const costCalculatorController = {
         'Last Accessed': new Date().toISOString()
       });
 
-      // REMOVED: Make.com automation (deprecated - using direct AI service now)
+      // Trigger automation if requested
       if (inputData.triggerAutomation) {
-        logger.info('Direct AI generation completed (Make.com automation deprecated)');
+        const automationResult = await makeService.triggerCostCalculation(customer, finalResult);
+        logger.info(`Cost calculation automation triggered: ${automationResult.success}`);
       }
 
       res.status(200).json({

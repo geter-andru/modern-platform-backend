@@ -1,18 +1,13 @@
 import Joi from 'joi';
 
-// Customer ID validation schema
-// ENHANCED (2025-10-11): Supports UUID (regular customers) + service accounts + test IDs
-// - UUID format: Standard Supabase customer IDs
-// - Service accounts: IDs starting with 'service_' (e.g., service_frontend_nextjs)
-// - Test IDs: IDs starting with 'test-' (for development/testing)
-const customerIdSchema = Joi.alternatives().try(
-  Joi.string().uuid(),  // Regular UUID customers
-  Joi.string().pattern(/^service_[a-z0-9_]+$/),  // Service accounts
-  Joi.string().pattern(/^test-[a-z0-9-]+$/)  // Test customers
-).required().messages({
-  'alternatives.match': 'Customer ID must be a valid UUID, service account (service_*), or test ID (test-*)',
-  'any.required': 'Customer ID is required'
-});
+// Customer ID validation schema - Supabase UUID format only
+const customerIdSchema = Joi.string()
+  .uuid()
+  .required()
+  .messages({
+    'string.guid': 'Customer ID must be a valid UUID',
+    'any.required': 'Customer ID is required'
+  });
 
 // Cost calculation validation schema
 const costCalculationSchema = Joi.object({

@@ -2,9 +2,6 @@ import authService from '../services/authService.js';
 import supabaseDataService from '../services/supabaseDataService.js';
 import logger from '../utils/logger.js';
 
-// MIGRATION NOTE (2025-10-11): Replaced airtableService with supabaseDataService
-// Modern platform uses 100% Supabase for customer data storage
-
 const authController = {
   /**
    * Generate JWT token for customer
@@ -20,7 +17,7 @@ const authController = {
         });
       }
 
-      // Verify customer exists (Supabase customer_assets table)
+      // Verify customer exists
       const customer = await supabaseDataService.getCustomerById(customerId);
       if (!customer) {
         return res.status(404).json({
@@ -201,10 +198,6 @@ const authController = {
 
   /**
    * Generate API key
-   *
-   * ENHANCED (2025-10-11): Added service account support
-   * - Service accounts (customerId starts with 'service_') don't require database validation
-   * - Regular customers still require Airtable record existence
    */
   async generateApiKey(req, res) {
     try {
@@ -217,41 +210,31 @@ const authController = {
         });
       }
 
-      // Service account exception: Skip database validation for service accounts
-      const isServiceAccount = customerId.startsWith('service_');
-
-      if (!isServiceAccount) {
-        // Verify customer exists for regular customers (Supabase customer_assets table)
-        const customer = await supabaseDataService.getCustomerById(customerId);
-        if (!customer) {
-          return res.status(404).json({
-            success: false,
-            error: 'Customer not found'
-          });
-        }
+      // Verify customer exists
+      const customer = await supabaseDataService.getCustomerById(customerId);
+      if (!customer) {
+        return res.status(404).json({
+          success: false,
+          error: 'Customer not found'
+        });
       }
 
       const apiKey = authService.generateApiKey(customerId);
 
-      logger.info(`Generated API key for ${isServiceAccount ? 'service account' : 'customer'} ${customerId}`);
+      logger.info(`Generated API key for customer ${customerId}`);
 
       res.status(200).json({
         success: true,
         data: {
           apiKey,
           customerId,
-          accountType: isServiceAccount ? 'service' : 'customer',
           generatedAt: new Date().toISOString(),
           usage: 'Include in X-API-Key header or apiKey query parameter'
         }
       });
     } catch (error) {
       logger.error(`Error generating API key: ${error.message}`);
-      return res.status(500).json({
-        success: false,
-        error: 'Failed to generate API key',
-        details: error.message
-      });
+      throw error;
     }
   },
 
@@ -300,7 +283,7 @@ const authController = {
       const { customerId, method, decoded } = req.auth;
       
       // Get customer data for validation
-      const customer = await airtableService.getCustomerById(customerId);
+      const customer = await supabaseDataService.getCustomerById(customerId);
       if (!customer) {
         return res.status(404).json({
           success: false,

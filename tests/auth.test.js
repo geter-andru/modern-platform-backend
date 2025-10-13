@@ -1,14 +1,27 @@
 import { jest } from '@jest/globals';
 import request from 'supertest';
 import app from '../src/server.js';
+import TestAuthHelper from './helpers/auth.js';
+import TestSetup from './helpers/testSetup.js';
+import { TEST_USERS, getValidTestUserId, getValidTestUserId2, getInvalidTestUserId } from './fixtures/testUsers.js';
+
+// Setup test environment
+beforeAll(() => {
+  TestSetup.setupTestEnvironment();
+});
+
+afterAll(() => {
+  TestSetup.cleanup();
+});
 
 describe('Authentication Tests', () => {
   describe('POST /api/auth/token', () => {
     test('should generate JWT token for valid customer', async () => {
+      const customerId = getValidTestUserId();
       const response = await request(app)
         .post('/api/auth/token')
         .send({
-          customerId: 'CUST_2'
+          customerId: customerId
         });
 
       expect(response.status).toBe(200);
@@ -17,6 +30,7 @@ describe('Authentication Tests', () => {
       expect(response.body.data).toHaveProperty('refreshToken');
       expect(response.body.data.tokenType).toBe('Bearer');
       expect(response.body.data.expiresIn).toBe('24h');
+      expect(response.body.data.customer.customerId).toBe(customerId);
     });
 
     test('should return 400 for missing customer ID', async () => {
@@ -26,14 +40,15 @@ describe('Authentication Tests', () => {
 
       expect(response.status).toBe(400);
       expect(response.body.success).toBe(false);
-      expect(response.body.error).toContain('Customer ID');
+      expect(response.body.error).toBe('Validation Error');
+      expect(response.body.details).toContain('Customer ID is required');
     });
 
     test('should return 404 for non-existent customer', async () => {
       const response = await request(app)
         .post('/api/auth/token')
         .send({
-          customerId: 'CUST_9999'
+          customerId: getInvalidTestUserId()
         });
 
       expect(response.status).toBe(404);
@@ -48,7 +63,7 @@ describe('Authentication Tests', () => {
         promises.push(
           request(app)
             .post('/api/auth/token')
-            .send({ customerId: 'CUST_2' })
+            .send({ customerId: getValidTestUserId2() })
         );
       }
 
@@ -65,11 +80,16 @@ describe('Authentication Tests', () => {
 
     beforeEach(async () => {
       // Get a refresh token first
+      const customerId = getValidTestUserId();
       const tokenResponse = await request(app)
         .post('/api/auth/token')
-        .send({ customerId: 'CUST_2' });
+        .send({ customerId });
       
-      refreshToken = tokenResponse.body.data.refreshToken;
+      if (tokenResponse.status === 200 && tokenResponse.body.success) {
+        refreshToken = tokenResponse.body.data.refreshToken;
+      } else {
+        throw new Error(`Failed to get refresh token: ${tokenResponse.body.error}`);
+      }
     });
 
     test('should refresh JWT token with valid refresh token', async () => {
@@ -105,15 +125,20 @@ describe('Authentication Tests', () => {
   });
 
   describe('GET /api/auth/verify', () => {
-    let accessToken;
+    let accessToken, customerId;
 
     beforeEach(async () => {
       // Get an access token first
+      customerId = getValidTestUserId();
       const tokenResponse = await request(app)
         .post('/api/auth/token')
-        .send({ customerId: 'CUST_2' });
+        .send({ customerId });
       
-      accessToken = tokenResponse.body.data.accessToken;
+      if (tokenResponse.status === 200 && tokenResponse.body.success) {
+        accessToken = tokenResponse.body.data.accessToken;
+      } else {
+        throw new Error(`Failed to get access token: ${tokenResponse.body.error}`);
+      }
     });
 
     test('should verify valid JWT token', async () => {
@@ -124,7 +149,7 @@ describe('Authentication Tests', () => {
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
       expect(response.body.data.valid).toBe(true);
-      expect(response.body.data.customerId).toBe('CUST_2');
+      expect(response.body.data.customerId).toBe(customerId);
     });
 
     test('should return 400 for missing authorization header', async () => {
@@ -152,7 +177,7 @@ describe('Authentication Tests', () => {
       const response = await request(app)
         .post('/api/auth/customer-token')
         .send({
-          customerId: 'CUST_2'
+          customerId: getValidTestUserId2()
         });
 
       expect(response.status).toBe(200);
@@ -165,7 +190,7 @@ describe('Authentication Tests', () => {
       const response = await request(app)
         .post('/api/auth/customer-token')
         .send({
-          customerId: 'CUST_9999'
+          customerId: getInvalidTestUserId()
         });
 
       expect(response.status).toBe(404);
@@ -179,13 +204,13 @@ describe('Authentication Tests', () => {
       const response = await request(app)
         .post('/api/auth/api-key')
         .send({
-          customerId: 'CUST_2'
+          customerId: getValidTestUserId2()
         });
 
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
       expect(response.body.data).toHaveProperty('apiKey');
-      expect(response.body.data.customerId).toBe('CUST_2');
+      expect(response.body.data.customerId).toBe(getValidTestUserId2());
       expect(response.body.data.usage).toContain('X-API-Key');
     });
 
@@ -193,7 +218,7 @@ describe('Authentication Tests', () => {
       const response = await request(app)
         .post('/api/auth/api-key')
         .send({
-          customerId: 'CUST_9999'
+          customerId: getInvalidTestUserId()
         });
 
       expect(response.status).toBe(404);
@@ -203,14 +228,19 @@ describe('Authentication Tests', () => {
   });
 
   describe('GET /api/auth/permissions', () => {
-    let accessToken;
+    let accessToken, customerId;
 
     beforeEach(async () => {
+      customerId = getValidTestUserId();
       const tokenResponse = await request(app)
         .post('/api/auth/token')
-        .send({ customerId: 'CUST_2' });
+        .send({ customerId });
       
-      accessToken = tokenResponse.body.data.accessToken;
+      if (tokenResponse.status === 200 && tokenResponse.body.success) {
+        accessToken = tokenResponse.body.data.accessToken;
+      } else {
+        throw new Error(`Failed to get access token: ${tokenResponse.body.error}`);
+      }
     });
 
     test('should get customer permissions with valid token', async () => {
@@ -221,7 +251,7 @@ describe('Authentication Tests', () => {
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
       expect(response.body.data).toHaveProperty('permissions');
-      expect(response.body.data.customerId).toBe('CUST_2');
+      expect(response.body.data.customerId).toBe(customerId);
     });
 
     test('should return 401 without authentication', async () => {
@@ -234,14 +264,19 @@ describe('Authentication Tests', () => {
   });
 
   describe('GET /api/auth/validate', () => {
-    let accessToken;
+    let accessToken, customerId;
 
     beforeEach(async () => {
+      customerId = getValidTestUserId();
       const tokenResponse = await request(app)
         .post('/api/auth/token')
-        .send({ customerId: 'CUST_2' });
+        .send({ customerId });
       
-      accessToken = tokenResponse.body.data.accessToken;
+      if (tokenResponse.status === 200 && tokenResponse.body.success) {
+        accessToken = tokenResponse.body.data.accessToken;
+      } else {
+        throw new Error(`Failed to get access token: ${tokenResponse.body.error}`);
+      }
     });
 
     test('should validate authentication successfully', async () => {
@@ -252,7 +287,7 @@ describe('Authentication Tests', () => {
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
       expect(response.body.data.authenticated).toBe(true);
-      expect(response.body.data.customerId).toBe('CUST_2');
+      expect(response.body.data.customerId).toBe(customerId);
       expect(response.body.data).toHaveProperty('customer');
       expect(response.body.data).toHaveProperty('permissions');
     });
@@ -284,27 +319,41 @@ describe('Authentication Tests', () => {
 
     beforeEach(async () => {
       // Get JWT token
+      const customerId = getValidTestUserId();
       const jwtResponse = await request(app)
         .post('/api/auth/token')
-        .send({ customerId: 'CUST_2' });
-      accessToken = jwtResponse.body.data.accessToken;
+        .send({ customerId });
+      
+      if (jwtResponse.status === 200 && jwtResponse.body.success) {
+        accessToken = jwtResponse.body.data.accessToken;
+      } else {
+        throw new Error(`Failed to get access token: ${jwtResponse.body.error}`);
+      }
 
       // Get API key
       const apiKeyResponse = await request(app)
         .post('/api/auth/api-key')
-        .send({ customerId: 'CUST_2' });
-      apiKey = apiKeyResponse.body.data.apiKey;
+        .send({ customerId });
+      if (apiKeyResponse.status === 200 && apiKeyResponse.body.success) {
+        apiKey = apiKeyResponse.body.data.apiKey;
+      } else {
+        throw new Error(`Failed to get API key: ${apiKeyResponse.body.error}`);
+      }
 
       // Get customer token
       const customerTokenResponse = await request(app)
         .post('/api/auth/customer-token')
-        .send({ customerId: 'CUST_2' });
-      customerToken = customerTokenResponse.body.data.accessToken;
+        .send({ customerId });
+      if (customerTokenResponse.status === 200 && customerTokenResponse.body.success) {
+        customerToken = customerTokenResponse.body.data.accessToken;
+      } else {
+        throw new Error(`Failed to get customer token: ${customerTokenResponse.body.error}`);
+      }
     });
 
     test('should authenticate with JWT token', async () => {
       const response = await request(app)
-        .get('/api/customer/CUST_2')
+        .get(`/api/customer/${getValidTestUserId2()}`)
         .set('Authorization', `Bearer ${accessToken}`);
 
       expect(response.status).toBe(200);
@@ -312,7 +361,7 @@ describe('Authentication Tests', () => {
 
     test('should authenticate with API key', async () => {
       const response = await request(app)
-        .get('/api/customer/CUST_2')
+        .get(`/api/customer/${getValidTestUserId2()}`)
         .set('X-API-Key', apiKey);
 
       expect(response.status).toBe(200);
@@ -320,7 +369,7 @@ describe('Authentication Tests', () => {
 
     test('should authenticate with customer token', async () => {
       const response = await request(app)
-        .get('/api/customer/CUST_2')
+        .get(`/api/customer/${getValidTestUserId2()}`)
         .set('X-Access-Token', customerToken);
 
       expect(response.status).toBe(200);
@@ -328,7 +377,7 @@ describe('Authentication Tests', () => {
 
     test('should reject request without any authentication', async () => {
       const response = await request(app)
-        .get('/api/customer/CUST_2');
+        .get(`/api/customer/${getValidTestUserId2()}`);
 
       expect(response.status).toBe(401);
       expect(response.body.error).toBe('Authentication required');
@@ -339,16 +388,21 @@ describe('Authentication Tests', () => {
     let accessToken;
 
     beforeEach(async () => {
+      const customerId = getValidTestUserId();
       const tokenResponse = await request(app)
         .post('/api/auth/token')
-        .send({ customerId: 'CUST_2' });
+        .send({ customerId });
       
-      accessToken = tokenResponse.body.data.accessToken;
+      if (tokenResponse.status === 200 && tokenResponse.body.success) {
+        accessToken = tokenResponse.body.data.accessToken;
+      } else {
+        throw new Error(`Failed to get access token: ${tokenResponse.body.error}`);
+      }
     });
 
     test('should allow access to own customer data', async () => {
       const response = await request(app)
-        .get('/api/customer/CUST_2')
+        .get(`/api/customer/${getValidTestUserId2()}`)
         .set('Authorization', `Bearer ${accessToken}`);
 
       expect(response.status).toBe(200);
@@ -356,7 +410,7 @@ describe('Authentication Tests', () => {
 
     test('should deny access to other customer data', async () => {
       const response = await request(app)
-        .get('/api/customer/CUST_3')
+        .get(`/api/customer/${TEST_USERS.valid3.id}`)
         .set('Authorization', `Bearer ${accessToken}`);
 
       expect(response.status).toBe(403);
@@ -372,11 +426,16 @@ describe('Authentication Tests', () => {
       // Set NODE_ENV to development for these tests
       process.env.NODE_ENV = 'development';
       
+      const customerId = getValidTestUserId();
       const tokenResponse = await request(app)
         .post('/api/auth/token')
-        .send({ customerId: 'CUST_2' });
+        .send({ customerId });
       
-      accessToken = tokenResponse.body.data.accessToken;
+      if (tokenResponse.status === 200 && tokenResponse.body.success) {
+        accessToken = tokenResponse.body.data.accessToken;
+      } else {
+        throw new Error(`Failed to get access token: ${tokenResponse.body.error}`);
+      }
     });
 
     afterEach(() => {
@@ -423,7 +482,7 @@ describe('Authentication Tests', () => {
         promises.push(
           request(app)
             .post('/api/auth/token')
-            .send({ customerId: 'CUST_2' })
+            .send({ customerId: getValidTestUserId2() })
         );
       }
 

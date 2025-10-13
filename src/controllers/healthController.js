@@ -1,4 +1,4 @@
-import airtableService from '../services/airtableService.js';
+import supabaseDataService from '../services/supabaseDataService.js';
 import logger from '../utils/logger.js';
 
 const healthController = {
@@ -39,7 +39,7 @@ const healthController = {
       
       try {
         const airtableStart = Date.now();
-        await airtableService.testConnection();
+        await supabaseDataService.testConnection();
         airtableResponseTime = Date.now() - airtableStart;
         airtableStatus = 'healthy';
       } catch (error) {

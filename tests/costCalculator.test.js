@@ -1,16 +1,17 @@
 import { describe, test, expect, beforeEach, jest } from '@jest/globals';
 import request from 'supertest';
 import app from '../src/server.js';
+import { TEST_USERS, getValidTestUserId, getValidTestUserId2, getInvalidTestUserId } from './fixtures/testUsers.js';
 
-// Mock the airtable service
-const mockAirtableService = {
+// Mock the supabase data service
+const mockSupabaseDataService = {
   getCustomerById: jest.fn(),
   updateCustomer: jest.fn(),
   createUserProgress: jest.fn(),
 };
 
-jest.unstable_mockModule('../src/services/airtableService.js', () => ({
-  default: mockAirtableService
+jest.unstable_mockModule('../src/services/supabaseDataService.js', () => ({
+  default: mockSupabaseDataService
 }));
 
 describe('Cost Calculator Endpoints', () => {
@@ -21,7 +22,7 @@ describe('Cost Calculator Endpoints', () => {
   describe('POST /api/cost-calculator/calculate', () => {
     test('should calculate cost of inaction with default values', async () => {
       const input = {
-        customerId: 'CUST_001',
+        customerId: getValidTestUserId(),
         potentialDeals: 10,
         averageDealSize: 50000,
         delayMonths: 6,
@@ -73,7 +74,7 @@ describe('Cost Calculator Endpoints', () => {
 
     test('should handle conservative scenario', async () => {
       const input = {
-        customerId: 'CUST_001',
+        customerId: getValidTestUserId(),
         potentialDeals: 5,
         averageDealSize: 25000,
         delayMonths: 3,
@@ -91,7 +92,7 @@ describe('Cost Calculator Endpoints', () => {
 
     test('should handle aggressive scenario', async () => {
       const input = {
-        customerId: 'CUST_001',
+        customerId: getValidTestUserId(),
         potentialDeals: 20,
         averageDealSize: 100000,
         delayMonths: 12,
@@ -133,7 +134,7 @@ describe('Cost Calculator Endpoints', () => {
       const response = await request(app)
         .post('/api/cost-calculator/calculate')
         .send({
-          customerId: 'CUST_001',
+          customerId: getValidTestUserId(),
           potentialDeals: -5,
           averageDealSize: 0,
           delayMonths: 100
@@ -147,7 +148,7 @@ describe('Cost Calculator Endpoints', () => {
       const response = await request(app)
         .post('/api/cost-calculator/calculate')
         .send({
-          customerId: 'CUST_001',
+          customerId: getValidTestUserId(),
           potentialDeals: 7.5,
           averageDealSize: 45678.90,
           delayMonths: 4.5,
@@ -164,12 +165,12 @@ describe('Cost Calculator Endpoints', () => {
   describe('POST /api/cost-calculator/save', () => {
     test('should save calculation results', async () => {
       const mockCustomer = {
-        customerId: 'CUST_001',
+        customerId: getValidTestUserId(),
         customerName: 'Test Customer'
       };
 
       const calculationData = {
-        customerId: 'CUST_001',
+        customerId: getValidTestUserId(),
         calculations: {
           totalCost: 500000,
           monthlyCost: 41666.67,
@@ -183,9 +184,9 @@ describe('Cost Calculator Endpoints', () => {
         }
       };
 
-      mockAirtableService.getCustomerById.mockResolvedValue(mockCustomer);
-      mockAirtableService.updateCustomer.mockResolvedValue({});
-      mockAirtableService.createUserProgress.mockResolvedValue({ id: 'rec123' });
+      mockSupabaseDataService.getCustomerById.mockResolvedValue(mockCustomer);
+      mockSupabaseDataService.updateCustomer.mockResolvedValue({});
+      mockSupabaseDataService.createUserProgress.mockResolvedValue({ id: 'rec123' });
 
       const response = await request(app)
         .post('/api/cost-calculator/save')
@@ -195,33 +196,33 @@ describe('Cost Calculator Endpoints', () => {
       expect(response.body).toMatchObject({
         success: true,
         data: {
-          customerId: 'CUST_001',
+          customerId: getValidTestUserId(),
           saved: true
         }
       });
 
-      expect(mockAirtableService.updateCustomer).toHaveBeenCalledWith(
-        'CUST_001',
+      expect(mockSupabaseDataService.updateCustomer).toHaveBeenCalledWith(
+        getValidTestUserId(),
         expect.objectContaining({
           'Cost Calculator Content': expect.stringContaining('500000')
         })
       );
 
-      expect(mockAirtableService.createUserProgress).toHaveBeenCalledWith(
+      expect(mockSupabaseDataService.createUserProgress).toHaveBeenCalledWith(
         expect.objectContaining({
-          'Customer ID': 'CUST_001',
+          'Customer ID': getValidTestUserId(),
           'Tool Name': 'Cost Calculator'
         })
       );
     });
 
     test('should return 404 for non-existent customer', async () => {
-      mockAirtableService.getCustomerById.mockResolvedValue(null);
+      mockSupabaseDataService.getCustomerById.mockResolvedValue(null);
 
       const response = await request(app)
         .post('/api/cost-calculator/save')
         .send({
-          customerId: 'CUST_999',
+          customerId: getInvalidTestUserId(),
           calculations: { totalCost: 100000 }
         })
         .expect(404);
@@ -236,7 +237,7 @@ describe('Cost Calculator Endpoints', () => {
       const response = await request(app)
         .post('/api/cost-calculator/save')
         .send({
-          customerId: 'CUST_001',
+          customerId: getValidTestUserId(),
           calculations: 'invalid'
         })
         .expect(400);
@@ -248,7 +249,7 @@ describe('Cost Calculator Endpoints', () => {
   describe('GET /api/cost-calculator/history/:customerId', () => {
     test('should retrieve calculation history', async () => {
       const mockCustomer = {
-        customerId: 'CUST_001',
+        customerId: getValidTestUserId(),
         costCalculatorContent: JSON.stringify({
           history: [
             {
@@ -265,7 +266,7 @@ describe('Cost Calculator Endpoints', () => {
         })
       };
 
-      mockAirtableService.getCustomerById.mockResolvedValue(mockCustomer);
+      mockSupabaseDataService.getCustomerById.mockResolvedValue(mockCustomer);
 
       const response = await request(app)
         .get('/api/cost-calculator/history/CUST_001')
@@ -274,7 +275,7 @@ describe('Cost Calculator Endpoints', () => {
       expect(response.body).toMatchObject({
         success: true,
         data: {
-          customerId: 'CUST_001',
+          customerId: getValidTestUserId(),
           history: expect.arrayContaining([
             expect.objectContaining({
               totalCost: 450000,
@@ -289,11 +290,11 @@ describe('Cost Calculator Endpoints', () => {
 
     test('should handle empty history', async () => {
       const mockCustomer = {
-        customerId: 'CUST_001',
+        customerId: getValidTestUserId(),
         costCalculatorContent: null
       };
 
-      mockAirtableService.getCustomerById.mockResolvedValue(mockCustomer);
+      mockSupabaseDataService.getCustomerById.mockResolvedValue(mockCustomer);
 
       const response = await request(app)
         .get('/api/cost-calculator/history/CUST_001')
@@ -304,11 +305,11 @@ describe('Cost Calculator Endpoints', () => {
 
     test('should handle malformed history JSON', async () => {
       const mockCustomer = {
-        customerId: 'CUST_001',
+        customerId: getValidTestUserId(),
         costCalculatorContent: 'invalid json{'
       };
 
-      mockAirtableService.getCustomerById.mockResolvedValue(mockCustomer);
+      mockSupabaseDataService.getCustomerById.mockResolvedValue(mockCustomer);
 
       const response = await request(app)
         .get('/api/cost-calculator/history/CUST_001')
@@ -321,7 +322,7 @@ describe('Cost Calculator Endpoints', () => {
   describe('POST /api/cost-calculator/compare', () => {
     test('should compare multiple scenarios', async () => {
       const input = {
-        customerId: 'CUST_001',
+        customerId: getValidTestUserId(),
         baseInputs: {
           potentialDeals: 10,
           averageDealSize: 50000,
@@ -369,7 +370,7 @@ describe('Cost Calculator Endpoints', () => {
       const response = await request(app)
         .post('/api/cost-calculator/compare')
         .send({
-          customerId: 'CUST_001',
+          customerId: getValidTestUserId(),
           baseInputs: {
             potentialDeals: 5,
             averageDealSize: 25000,
@@ -387,7 +388,7 @@ describe('Cost Calculator Endpoints', () => {
       const response = await request(app)
         .post('/api/cost-calculator/compare')
         .send({
-          customerId: 'CUST_001',
+          customerId: getValidTestUserId(),
           baseInputs: {
             potentialDeals: 10,
             averageDealSize: 50000,

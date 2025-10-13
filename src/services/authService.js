@@ -6,9 +6,6 @@ import config from '../config/index.js';
 import supabaseDataService from './supabaseDataService.js';
 import logger from '../utils/logger.js';
 
-// MIGRATION NOTE (2025-10-11): Replaced airtableService with supabaseDataService
-// Modern platform uses 100% Supabase for customer data storage
-
 class AuthService {
   constructor() {
     this.jwtSecret = config.jwt.secret;
@@ -67,7 +64,7 @@ class AuthService {
   }
 
   /**
-   * Generate customer access token (for customer-specific API access)
+   * Generate customer access token (Supabase JWT-based)
    */
   async generateCustomerAccessToken(customerId) {
     try {
@@ -77,24 +74,18 @@ class AuthService {
         throw new Error('Customer not found');
       }
 
-      // Generate secure access token
-      const accessToken = crypto.randomBytes(32).toString('hex');
-      const hashedToken = await bcrypt.hash(accessToken, 12);
-      
-      // Store hashed token in customer record
-      await airtableService.updateCustomer(customerId, {
-        'Access Token': hashedToken,
-        'Token Generated At': new Date().toISOString(),
-        'Token Last Used': new Date().toISOString()
-      });
+      // Generate Supabase-compatible JWT token
+      const accessToken = this.generateToken(customerId, 'access');
 
-      logger.info(`Generated access token for customer ${customerId}`);
+      logger.info(`Generated Supabase JWT access token for customer ${customerId}`);
       
       return {
         accessToken,
         customerId,
-        expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(), // 1 year
-        permissions: ['read', 'write'] // Default permissions
+        generatedAt: new Date().toISOString(),
+        expiresIn: '24h',
+        tokenType: 'Bearer',
+        usage: 'Include in Authorization header as Bearer token'
       };
     } catch (error) {
       logger.error(`Failed to generate customer access token: ${error.message}`);
@@ -116,7 +107,7 @@ class AuthService {
       
       if (isValid) {
         // Update last used timestamp
-        await airtableService.updateCustomer(customerId, {
+        await supabaseDataService.updateCustomer(customerId, {
           'Token Last Used': new Date().toISOString()
         });
 
@@ -146,7 +137,7 @@ class AuthService {
    */
   async revokeCustomerAccessToken(customerId) {
     try {
-      await airtableService.updateCustomer(customerId, {
+      await supabaseDataService.updateCustomer(customerId, {
         'Access Token': null,
         'Token Revoked At': new Date().toISOString()
       });

@@ -1,4 +1,5 @@
 import { jest } from '@jest/globals';
+import { TEST_USERS, getValidTestUserId, getValidTestUserId2, getInvalidTestUserId, isValidTestUserId, getTestUserById } from './fixtures/testUsers.js';
 
 // Set test environment variables
 process.env.NODE_ENV = 'test';
@@ -11,9 +12,6 @@ process.env.SUPABASE_SERVICE_ROLE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.te
 // Backend API Key for test requests
 process.env.BACKEND_API_KEY = 'test-api-key-12345';
 
-// Legacy Airtable test credentials
-process.env.AIRTABLE_API_KEY = 'test_api_key';
-process.env.AIRTABLE_BASE_ID = 'test_base_id';
 
 // JWT secret for token generation/validation in tests
 process.env.JWT_SECRET = 'test-jwt-secret-key';
@@ -37,23 +35,55 @@ afterAll(() => {
 // Global test timeout
 jest.setTimeout(30000);
 
-// Mock Airtable service for tests
-jest.unstable_mockModule('../src/services/airtableService.js', () => ({
+// Mock Supabase Data service for tests with UUID fixture support
+jest.unstable_mockModule('../src/services/supabaseDataService.js', () => ({
   default: {
-    testConnection: jest.fn().mockResolvedValue(true),
-    getCustomerById: jest.fn(),
-    updateCustomer: jest.fn(),
-    createUserProgress: jest.fn(),
-    getUserProgress: jest.fn(),
-    getAllCustomers: jest.fn(),
+    getCustomerById: jest.fn().mockImplementation((customerId) => {
+      // Return mock customer for known test user IDs
+      const testUser = Object.values(TEST_USERS).find(u => u.id === customerId);
+      if (testUser && customerId !== TEST_USERS.invalid.id) {
+        return {
+          customerId: testUser.id,
+          email: testUser.email,
+          customerName: testUser.name,
+          company: `Test Company`,
+          emailConfirmed: true,
+          status: 'active',
+          createdAt: new Date().toISOString(),
+          lastSignIn: new Date().toISOString()
+        };
+      }
+      return null;
+    }),
+    updateCustomer: jest.fn().mockResolvedValue({}),
+    upsertCustomer: jest.fn().mockResolvedValue({}),
+    getAllCustomers: jest.fn().mockResolvedValue([]),
+    createUserProgress: jest.fn().mockResolvedValue({}),
+    getUserProgress: jest.fn().mockResolvedValue({}),
   }
 }));
 
-export const mockAirtableService = {
-  testConnection: jest.fn().mockResolvedValue(true),
-  getCustomerById: jest.fn(),
-  updateCustomer: jest.fn(),
-  createUserProgress: jest.fn(),
-  getUserProgress: jest.fn(),
-  getAllCustomers: jest.fn(),
+export const mockSupabaseDataService = {
+  getCustomerById: jest.fn().mockImplementation((customerId) => {
+    // Return mock customer for known test user IDs
+    const testUser = Object.values(TEST_USERS).find(u => u.id === customerId);
+    if (testUser && customerId !== TEST_USERS.invalid.id) {
+      return {
+        customerId: testUser.id,
+        email: testUser.email,
+        customerName: testUser.name,
+        company: `Test Company`,
+        emailConfirmed: true,
+        status: 'active',
+        createdAt: new Date().toISOString(),
+        lastSignIn: new Date().toISOString()
+      };
+    }
+    return null;
+  }),
+  updateCustomer: jest.fn().mockResolvedValue({}),
+  upsertCustomer: jest.fn().mockResolvedValue({}),
+  getAllCustomers: jest.fn().mockResolvedValue([]),
+  createUserProgress: jest.fn().mockResolvedValue({}),
+  getUserProgress: jest.fn().mockResolvedValue({}),
 };

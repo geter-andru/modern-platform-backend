@@ -7,7 +7,7 @@ import logger from '../utils/logger.js';
 // Rate limiting configuration
 const rateLimiter = rateLimit({
   windowMs: config.security.rateLimit.windowMs,
-  max: config.security.rateLimit.maxRequests,
+  max: config.server.nodeEnv === 'test' ? 10000 : config.security.rateLimit.maxRequests, // Much higher limit for tests
   message: {
     success: false,
     error: 'Too many requests from this IP, please try again later.',
@@ -28,7 +28,7 @@ const rateLimiter = rateLimit({
 // Stricter rate limiting for sensitive endpoints
 const strictRateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 10, // Limit each IP to 10 requests per windowMs
+  max: config.server.nodeEnv === 'test' ? 1000 : 10, // Much higher limit for tests
   message: {
     success: false,
     error: 'Too many requests to sensitive endpoint, please try again later.',

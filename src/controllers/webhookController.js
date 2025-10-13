@@ -1,5 +1,5 @@
 import makeService from '../services/makeService.js';
-import airtableService from '../services/airtableService.js';
+import supabaseDataService from '../services/supabaseDataService.js';
 import logger from '../utils/logger.js';
 
 const webhookController = {
@@ -20,7 +20,7 @@ const webhookController = {
       logger.info(`Received webhook: ${webhookType} for customer ${customerId}`);
 
       // Get customer data
-      const customer = await airtableService.getCustomerById(customerId);
+      const customer = await supabaseDataService.getCustomerById(customerId);
       if (!customer) {
         return res.status(404).json({
           success: false,
@@ -100,10 +100,10 @@ const webhookController = {
         'Last Accessed': new Date().toISOString()
       };
 
-      await airtableService.updateCustomer(customer.customerId, updateData);
+      await supabaseDataService.updateCustomer(customer.customerId, updateData);
 
       // Update progress tracking
-      await airtableService.updateUserProgress(customer.customerId, 'ICP Analysis', {
+      await supabaseDataService.updateUserProgress(customer.customerId, 'ICP Analysis', {
         completionStatus: 'completed',
         aiGenerated: true,
         confidence: icpData.confidence,
@@ -146,10 +146,10 @@ const webhookController = {
         'Last Accessed': new Date().toISOString()
       };
 
-      await airtableService.updateCustomer(customer.customerId, updateData);
+      await supabaseDataService.updateCustomer(customer.customerId, updateData);
 
       // Update progress tracking
-      await airtableService.updateUserProgress(customer.customerId, 'Cost Calculator', {
+      await supabaseDataService.updateUserProgress(customer.customerId, 'Cost Calculator', {
         completionStatus: 'completed',
         aiGenerated: true,
         totalCost: costData.latestCalculation.totalCost,
@@ -192,10 +192,10 @@ const webhookController = {
         'Last Accessed': new Date().toISOString()
       };
 
-      await airtableService.updateCustomer(customer.customerId, updateData);
+      await supabaseDataService.updateCustomer(customer.customerId, updateData);
 
       // Update progress tracking
-      await airtableService.updateUserProgress(customer.customerId, 'Business Case Builder', {
+      await supabaseDataService.updateUserProgress(customer.customerId, 'Business Case Builder', {
         completionStatus: 'completed',
         aiGenerated: true,
         confidence: businessCaseData.confidence,
@@ -229,7 +229,7 @@ const webhookController = {
       };
 
       // Update progress tracking
-      await airtableService.updateUserProgress(customer.customerId, progressUpdate.milestone, {
+      await supabaseDataService.updateUserProgress(customer.customerId, progressUpdate.milestone, {
         completionStatus: 'milestone_achieved',
         aiTracked: true,
         achievement: progressUpdate.achievement,
@@ -260,7 +260,7 @@ const webhookController = {
       }
 
       // Get customer data
-      const customer = await airtableService.getCustomerById(customerId);
+      const customer = await supabaseDataService.getCustomerById(customerId);
       if (!customer) {
         return res.status(404).json({
           success: false,

@@ -15,7 +15,7 @@ class AIService {
       const prompt = this.buildICPPrompt(customerData, businessContext);
       
       const aiResponse = await this.callAnthropicAPI(prompt, {
-        model: 'claude-3-5-sonnet-20241022',
+        model: 'claude-3-sonnet-20240229',
         max_tokens: 2000,
         temperature: 0.7
       });
@@ -52,7 +52,7 @@ class AIService {
       const prompt = this.buildCostCalculationPrompt(customerData, inputData);
       
       const aiResponse = await this.callAnthropicAPI(prompt, {
-        model: 'claude-3-5-sonnet-20241022',
+        model: 'claude-3-sonnet-20240229',
         max_tokens: 1500,
         temperature: 0.5
       });
@@ -89,7 +89,7 @@ class AIService {
       const prompt = this.buildBusinessCasePrompt(customerData, requirements);
       
       const aiResponse = await this.callAnthropicAPI(prompt, {
-        model: 'claude-3-5-sonnet-20241022',
+        model: 'claude-3-sonnet-20240229',
         max_tokens: 3000,
         temperature: 0.6
       });
@@ -163,22 +163,8 @@ Based on this analysis, provide a structured ICP analysis with:
 3. Key Buying Indicators (5-8 indicators that signal readiness for this specific product)
 4. Red Flags to avoid (3-5 red flags that indicate poor fit for this product)
 5. Rating Criteria (4-5 criteria with weights and descriptions specific to this product's ideal customers)
-6. **Buyer Personas (2-3 detailed personas)**: Generate specific individual buyer personas (not generic roles) with:
-   - Personal details: name, title, role (CEO, CTO, VP Sales, etc.)
-   - Demographics: age range, experience level, education, location, company size, industry
-   - Psychographics: values, motivations, fears, personality type, work style, communication style
-   - Professional goals: specific measurable goals (e.g., "Scale from $2M to $10M ARR")
-   - Pain points: specific challenges they face (e.g., "Cannot accurately forecast revenue pipeline")
-   - Buying behavior: research style, risk tolerance, decision speed, information sources, evaluation criteria
-   - Communication preferences: preferred channels, communication style, meeting preferences, follow-up frequency
-   - Technology usage: current tools, tech savviness, preferred platforms, integration requirements
-   - Decision influence: influencers, decision factors, approval process, budget authority, timeline
-   - Objections: common objections they might raise
-   - Information sources: where they learn about solutions
 
 Focus on how the product's distinguishing features and business model influence the ideal customer profile. Consider the specific pain points this product solves and the type of companies that would benefit most from it.
-
-CRITICAL: Generate realistic buyer personas with actual names (e.g., "Sarah Chen", "Marcus Rodriguez") and specific, actionable details. Avoid generic descriptions.
 
 Format your response as valid JSON with the following structure:
 {
@@ -198,62 +184,6 @@ Format your response as valid JSON with the following structure:
       "name": "Criteria Name",
       "weight": 25,
       "description": "Description of criteria"
-    }
-  ],
-  "buyerPersonas": [
-    {
-      "id": "persona-1",
-      "name": "Sarah Chen",
-      "role": "CEO",
-      "title": "CEO & Co-Founder",
-      "demographics": {
-        "ageRange": "35-45",
-        "experience": "15+ years in tech",
-        "education": "Computer Science degree",
-        "location": "San Francisco Bay Area",
-        "companySize": "50-200 employees",
-        "industry": "B2B SaaS"
-      },
-      "psychographics": {
-        "values": ["Systematic efficiency", "Data-driven decisions", "Long-term thinking"],
-        "motivations": ["Achieve predictable growth", "Build world-class team"],
-        "fears": ["Missing fundraising targets", "Losing board credibility"],
-        "personality": "INTJ (Architect)",
-        "workStyle": "Analytical, systematic, data-focused",
-        "communicationStyle": "Direct, technical, evidence-based"
-      },
-      "goals": ["Scale from $2M to $10M ARR", "Build repeatable sales motion"],
-      "painPoints": ["Cannot forecast pipeline", "Losing deals to competitors"],
-      "buyingBehavior": {
-        "researchStyle": "Thorough technical evaluation",
-        "riskTolerance": "Low - needs proven ROI",
-        "decisionSpeed": "Deliberate - 2-4 weeks",
-        "informationSources": ["Peer recommendations", "Technical docs", "Case studies"],
-        "evaluationCriteria": ["ROI proof", "Integration ease", "Technical credibility"],
-        "decisionProcess": "Analytical evaluation → ROI validation → Implementation planning"
-      },
-      "communicationPreferences": {
-        "preferredChannels": ["Email", "Product demos", "Documentation"],
-        "communicationStyle": "Technical, direct, data-driven",
-        "meetingPreferences": "Concise, agenda-driven, outcome-focused",
-        "followUpFrequency": "Weekly updates",
-        "contentPreferences": ["Case studies", "ROI calculators", "Technical whitepapers"]
-      },
-      "technologyUsage": {
-        "currentTools": ["HubSpot", "Salesforce", "Gong"],
-        "techSavviness": "Very high - technical founder",
-        "preferredPlatforms": ["Web app", "API integrations"],
-        "integrationRequirements": ["CRM sync", "Sales automation", "Data export"]
-      },
-      "decisionInfluence": {
-        "influencers": ["Board members", "VP Sales", "CFO"],
-        "decisionFactors": ["ROI", "Team impact", "Implementation time"],
-        "approvalProcess": "CEO decision with board visibility",
-        "budgetAuthority": "Full authority up to $50K",
-        "timeline": "2-4 weeks for tools, 1-3 months for platforms"
-      },
-      "objections": ["Does this work for B2B SaaS?", "How long until results?"],
-      "informationSources": ["SaaStr community", "Y Combinator network", "Industry analysts"]
     }
   ]
 }`;
@@ -369,7 +299,7 @@ Format as JSON:
         'Anthropic-Version': '2023-06-01'
       },
       body: JSON.stringify({
-        model: options.model || 'claude-3-5-sonnet-20241022',
+        model: options.model || 'claude-3-sonnet-20240229',
         max_tokens: options.max_tokens || 2000,
         temperature: options.temperature || 0.7,
         messages: [
@@ -399,35 +329,14 @@ Format as JSON:
       if (!jsonMatch) {
         throw new Error('No JSON found in response');
       }
-
+      
       const parsed = JSON.parse(jsonMatch[0]);
-
+      
       // Validate required fields
       if (!parsed.title || !parsed.segments || !Array.isArray(parsed.segments)) {
         throw new Error('Invalid ICP response structure');
       }
-
-      // Validate buyer personas (critical for Priority #3 Technical Translation)
-      if (!parsed.buyerPersonas || !Array.isArray(parsed.buyerPersonas)) {
-        logger.warn('No buyer personas in AI response, adding fallback personas');
-        parsed.buyerPersonas = this.getFallbackBuyerPersonas();
-      } else if (parsed.buyerPersonas.length === 0) {
-        logger.warn('Empty buyer personas array, adding fallback personas');
-        parsed.buyerPersonas = this.getFallbackBuyerPersonas();
-      } else {
-        // Validate persona structure
-        parsed.buyerPersonas = parsed.buyerPersonas.map((persona, index) => {
-          if (!persona.id) persona.id = `persona-${index + 1}`;
-          if (!persona.name) persona.name = `Buyer Persona ${index + 1}`;
-          if (!persona.role) persona.role = index === 0 ? 'CEO' : 'VP Sales';
-          if (!persona.title) persona.title = persona.role;
-          if (!persona.goals || !Array.isArray(persona.goals)) persona.goals = [];
-          if (!persona.painPoints || !Array.isArray(persona.painPoints)) persona.painPoints = [];
-          return persona;
-        });
-        logger.info(`Validated ${parsed.buyerPersonas.length} buyer personas`);
-      }
-
+      
       return parsed;
     } catch (error) {
       logger.warn(`Failed to parse ICP response: ${error.message}`);
@@ -503,162 +412,6 @@ Format as JSON:
   }
 
   /**
-   * Generate fallback buyer personas
-   */
-  getFallbackBuyerPersonas(companyName = 'Target Company', industry = 'Technology') {
-    return [
-      {
-        id: 'fallback-ceo',
-        name: 'Alex Johnson',
-        role: 'CEO',
-        title: 'CEO & Co-Founder',
-        demographics: {
-          ageRange: '35-45',
-          experience: '15+ years in technology',
-          education: 'Computer Science or Business degree',
-          location: 'Major tech hub',
-          companySize: '50-200 employees',
-          industry: industry
-        },
-        psychographics: {
-          values: ['Systematic efficiency', 'Data-driven decisions', 'Long-term strategic thinking'],
-          motivations: ['Achieve predictable revenue growth', 'Build world-class team', 'Scale operations systematically'],
-          fears: ['Missing fundraising targets', 'Losing board credibility', 'Making wrong strategic bets'],
-          personality: 'Analytical, strategic, results-oriented',
-          workStyle: 'Data-focused, systematic, efficient',
-          communicationStyle: 'Direct, technical, evidence-based'
-        },
-        goals: [
-          `Scale ${companyName} to next growth stage`,
-          'Achieve predictable revenue pipeline',
-          'Build repeatable sales process'
-        ],
-        painPoints: [
-          'Cannot accurately forecast revenue',
-          'Difficulty articulating business value to economic buyers',
-          'Struggling to build scalable sales motion',
-          'Limited visibility into pipeline quality'
-        ],
-        buyingBehavior: {
-          researchStyle: 'Thorough evaluation with technical validation',
-          riskTolerance: 'Low - needs proven ROI and case studies',
-          decisionSpeed: 'Deliberate - 2-4 weeks for tools',
-          informationSources: ['Peer recommendations', 'Industry analyst reports', 'Case studies'],
-          evaluationCriteria: ['Proven ROI', 'Integration ease', 'Technical credibility', 'Time to value'],
-          decisionProcess: 'Research → Demo → ROI validation → Implementation planning'
-        },
-        communicationPreferences: {
-          preferredChannels: ['Email', 'Product demonstrations', 'Technical documentation'],
-          communicationStyle: 'Technical, direct, data-driven',
-          meetingPreferences: 'Concise, agenda-driven, outcome-focused',
-          followUpFrequency: 'Weekly progress updates',
-          contentPreferences: ['Case studies', 'ROI calculators', 'Technical whitepapers']
-        },
-        technologyUsage: {
-          currentTools: ['CRM system', 'Sales enablement tools', 'Analytics platforms'],
-          techSavviness: 'High - technical background',
-          preferredPlatforms: ['Web applications', 'API integrations', 'Mobile apps'],
-          integrationRequirements: ['CRM sync', 'Data export', 'API access']
-        },
-        decisionInfluence: {
-          influencers: ['Board members', 'VP Sales', 'CFO', 'CTO'],
-          decisionFactors: ['ROI', 'Team productivity', 'Implementation time', 'Total cost of ownership'],
-          approvalProcess: 'CEO decision with board visibility',
-          budgetAuthority: 'Full authority up to $50K',
-          timeline: '2-4 weeks for tools, 1-3 months for platforms'
-        },
-        objections: [
-          'How does this integrate with existing systems?',
-          'What\'s the expected ROI and payback period?',
-          'How long until we see measurable results?',
-          'What if our team resists adoption?'
-        ],
-        informationSources: [
-          'Industry conferences',
-          'Peer networks',
-          'Industry analysts (Gartner, Forrester)',
-          'Product review sites'
-        ]
-      },
-      {
-        id: 'fallback-vp-sales',
-        name: 'Jordan Martinez',
-        role: 'VP Sales',
-        title: 'VP of Sales',
-        demographics: {
-          ageRange: '40-50',
-          experience: '20+ years in sales leadership',
-          education: 'Business or Marketing degree',
-          location: 'Major business hub',
-          companySize: '50-200 employees',
-          industry: industry
-        },
-        psychographics: {
-          values: ['Results-driven execution', 'Team success', 'Customer satisfaction'],
-          motivations: ['Hit revenue targets', 'Build high-performing sales team', 'Improve win rates'],
-          fears: ['Missing quota', 'Losing top performers', 'Competitive displacement'],
-          personality: 'Competitive, driven, people-focused',
-          workStyle: 'Goal-oriented, collaborative, metrics-driven',
-          communicationStyle: 'Enthusiastic, outcome-focused, motivational'
-        },
-        goals: [
-          'Achieve quarterly revenue targets',
-          'Improve sales team win rate by 20%',
-          'Reduce sales cycle length',
-          'Build predictable pipeline'
-        ],
-        painPoints: [
-          'Inconsistent sales performance across team',
-          'Long sales cycles on enterprise deals',
-          'Difficulty articulating ROI to economic buyers',
-          'Sales reps struggle with value communication',
-          'Low conversion rates on qualified leads'
-        ],
-        buyingBehavior: {
-          researchStyle: 'Fast evaluation focused on team impact',
-          riskTolerance: 'Medium - willing to try proven solutions',
-          decisionSpeed: 'Fast - 1-2 weeks if ROI is clear',
-          informationSources: ['Peer recommendations', 'Sales leader communities', 'Product demos'],
-          evaluationCriteria: ['Team adoption', 'Immediate impact', 'Ease of use', 'Integration'],
-          decisionProcess: 'Quick demo → Team pilot → Rollout decision'
-        },
-        communicationPreferences: {
-          preferredChannels: ['Phone calls', 'Video meetings', 'Live demos'],
-          communicationStyle: 'Enthusiastic, results-focused, people-oriented',
-          meetingPreferences: 'Interactive, demo-heavy, results-focused',
-          followUpFrequency: 'Frequent check-ins during evaluation',
-          contentPreferences: ['Success stories', 'Video case studies', 'Sales playbooks']
-        },
-        technologyUsage: {
-          currentTools: ['Salesforce', 'HubSpot', 'Outreach', 'Gong', 'LinkedIn Sales Navigator'],
-          techSavviness: 'Medium - sales tech focused',
-          preferredPlatforms: ['Mobile-first', 'CRM-integrated', 'Easy to use'],
-          integrationRequirements: ['Salesforce sync', 'Email integration', 'Mobile app']
-        },
-        decisionInfluence: {
-          influencers: ['Sales team', 'CEO', 'Revenue Operations', 'Top performers'],
-          decisionFactors: ['Team buy-in', 'Win rate impact', 'Ease of adoption', 'Quick wins'],
-          approvalProcess: 'VP Sales recommends, CEO approves',
-          budgetAuthority: 'Approval authority up to $25K',
-          timeline: '1-2 weeks for sales tools'
-        },
-        objections: [
-          'Will my team actually use this?',
-          'How quickly can we see results?',
-          'What\'s the learning curve?',
-          'Does this work with our CRM?'
-        ],
-        informationSources: [
-          'Sales leadership communities',
-          'Revenue Collective',
-          'Pavilion community',
-          'Sales conferences (SaaStr, Sales Hacker)'
-        ]
-      }
-    ];
-  }
-
-  /**
    * Fallback ICP data
    */
   getICPFallback(customerData = {}) {
@@ -680,8 +433,7 @@ Format as JSON:
           weight: 30,
           description: "Employee count and revenue"
         }
-      ],
-      buyerPersonas: this.getFallbackBuyerPersonas(customerData.company, customerData.industry)
+      ]
     };
   }
 
