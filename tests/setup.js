@@ -59,6 +59,7 @@ jest.unstable_mockModule('../src/services/supabaseDataService.js', () => ({
     upsertCustomer: jest.fn().mockResolvedValue({}),
     getAllCustomers: jest.fn().mockResolvedValue([]),
     createUserProgress: jest.fn().mockResolvedValue({}),
+    updateUserProgress: jest.fn().mockResolvedValue({}),
     getUserProgress: jest.fn().mockResolvedValue({}),
   }
 }));
@@ -85,5 +86,6 @@ export const mockSupabaseDataService = {
   upsertCustomer: jest.fn().mockResolvedValue({}),
   getAllCustomers: jest.fn().mockResolvedValue([]),
   createUserProgress: jest.fn().mockResolvedValue({}),
+  updateUserProgress: jest.fn().mockResolvedValue({}),
   getUserProgress: jest.fn().mockResolvedValue({}),
 };

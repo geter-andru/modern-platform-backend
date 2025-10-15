@@ -7,7 +7,7 @@ import exportController from '../controllers/exportController.js';
 import authRoutes from './auth.js';
 import webhookRoutes from './webhooks.js';
 import progressRoutes from './progress.js';
-import { validate, paramSchemas, costCalculationSchema, businessCaseSchema } from '../middleware/validation.js';
+import { validate, paramSchemas, costCalculationSchema, costComparisonSchema, businessCaseSchema } from '../middleware/validation.js';
 import { strictRateLimiter } from '../middleware/security.js';
 import { authenticateMulti, requireCustomerContext, customerRateLimit } from '../middleware/auth.js';
 
@@ -120,7 +120,7 @@ router.get('/api/cost-calculator/history/:customerId',
 router.post('/api/cost-calculator/compare',
   customerRateLimit(15, 15 * 60 * 1000), // 15 requests per 15 minutes
   authenticateMulti,
-  validate(costCalculationSchema),
+  validate(costComparisonSchema),
   costCalculatorController.compareCostScenarios
 );
 
