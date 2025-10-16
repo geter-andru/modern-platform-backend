@@ -15,7 +15,7 @@ class AIService {
       const prompt = this.buildICPPrompt(customerData, businessContext);
       
       const aiResponse = await this.callAnthropicAPI(prompt, {
-        model: 'claude-3-5-sonnet-20241022',
+        model: 'claude-3-sonnet-20240229',
         max_tokens: 2000,
         temperature: 0.7
       });
@@ -29,7 +29,7 @@ class AIService {
         data: icpAnalysis,
         metadata: {
           generatedAt: new Date().toISOString(),
-          model: 'claude-3.5-sonnet',
+          model: 'claude-3-sonnet',
           confidence: this.calculateConfidence(icpAnalysis),
           source: 'ai_generated'
         }
@@ -52,7 +52,7 @@ class AIService {
       const prompt = this.buildCostCalculationPrompt(customerData, inputData);
       
       const aiResponse = await this.callAnthropicAPI(prompt, {
-        model: 'claude-3-5-sonnet-20241022',
+        model: 'claude-3-sonnet-20240229',
         max_tokens: 1500,
         temperature: 0.5
       });
@@ -66,7 +66,7 @@ class AIService {
         data: costAnalysis,
         metadata: {
           generatedAt: new Date().toISOString(),
-          model: 'claude-3.5-sonnet',
+          model: 'claude-3-sonnet',
           confidence: this.calculateConfidence(costAnalysis),
           source: 'ai_generated'
         }
@@ -89,7 +89,7 @@ class AIService {
       const prompt = this.buildBusinessCasePrompt(customerData, requirements);
       
       const aiResponse = await this.callAnthropicAPI(prompt, {
-        model: 'claude-3-5-sonnet-20241022',
+        model: 'claude-3-sonnet-20240229',
         max_tokens: 3000,
         temperature: 0.6
       });
@@ -103,7 +103,7 @@ class AIService {
         data: businessCase,
         metadata: {
           generatedAt: new Date().toISOString(),
-          model: 'claude-3.5-sonnet',
+          model: 'claude-3-sonnet',
           confidence: this.calculateConfidence(businessCase),
           source: 'ai_generated'
         }
@@ -299,7 +299,7 @@ Format as JSON:
         'Anthropic-Version': '2023-06-01'
       },
       body: JSON.stringify({
-        model: options.model || 'claude-3-5-sonnet-20241022',
+        model: options.model || 'claude-3-sonnet-20240229',
         max_tokens: options.max_tokens || 2000,
         temperature: options.temperature || 0.7,
         messages: [

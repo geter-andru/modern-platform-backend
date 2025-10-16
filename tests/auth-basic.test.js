@@ -1,7 +1,6 @@
 import { jest } from '@jest/globals';
 import request from 'supertest';
 import app from '../src/server.js';
-import { getValidTestUserId2 } from './fixtures/testUsers.js';
 
 describe('Basic Authentication Tests', () => {
   describe('Auth Status', () => {
@@ -20,7 +19,7 @@ describe('Basic Authentication Tests', () => {
       const response = await request(app)
         .post('/api/auth/token')
         .send({
-          customerId: getValidTestUserId2()
+          customerId: 'CUST_2'
         });
 
       console.log('Response status:', response.status);

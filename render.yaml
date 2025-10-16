@@ -17,7 +17,11 @@ services:
         value: 24h
       - key: JWT_REFRESH_EXPIRES_IN
         value: 7d
-    - key: CORS_ORIGIN
+      - key: AIRTABLE_API_KEY
+        sync: false  # Set this manually in Render dashboard
+      - key: AIRTABLE_BASE_ID
+        sync: false  # Set this manually in Render dashboard
+      - key: CORS_ORIGIN
         value: https://platform.andru-ai.com
       - key: ANTHROPIC_API_KEY
         sync: false  # Set this manually in Render dashboard

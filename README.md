@@ -67,8 +67,8 @@ PORT=3001
 HOST=localhost
 
 # Database
-SUPABASE_URL=your_supabase_url
-SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
+AIRTABLE_API_KEY=your_airtable_api_key
+AIRTABLE_BASE_ID=app0jJkgTCqn46vp9
 
 # Authentication
 JWT_SECRET=your_jwt_secret_here
@@ -195,7 +195,7 @@ api-backend/
 │   │   ├── index.js
 │   │   ├── progress.js
 │   ├── services/             # Business logic
-│   │   ├── supabaseDataService.js
+│   │   ├── airtableService.js
 │   │   ├── authService.js
 │   │   ├── aiService.js
 │   │   └── progressService.js

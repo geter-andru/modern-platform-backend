@@ -1,4 +1,5 @@
 import supabaseDataService from '../services/supabaseDataService.js';
+import airtableService from '../services/airtableService.js'; // Keep as fallback
 import aiService from '../services/aiService.js';
 import makeService from '../services/makeService.js';
 import logger from '../utils/logger.js';
@@ -245,7 +246,7 @@ const costCalculatorController = {
   // Compare cost scenarios
   async compareCostScenarios(req, res) {
     try {
-      const { customerId, scenarios, potentialDeals, averageDealSize, conversionRate, delayMonths, currentOperatingCost, inefficiencyRate, employeeCount, averageSalary, marketShare } = req.body;
+      const { customerId, baseInputs, scenarios } = req.body;
 
       const comparisons = [];
       const scenarioMultipliers = {
@@ -267,26 +268,15 @@ const costCalculatorController = {
         
         // Calculate for this scenario
         const totalCost = (
-          (potentialDeals || 0) * (averageDealSize || 0) * 
-          (conversionRate || 0.15) * ((delayMonths || 0) / 12)
+          (baseInputs.potentialDeals || 0) * (baseInputs.averageDealSize || 0) * 
+          (baseInputs.conversionRate || 0.15) * ((baseInputs.delayMonths || 0) / 12)
         ) * multiplier;
 
         comparisons.push({
           scenario,
           totalCost,
           multiplier,
-          inputs: { 
-            potentialDeals, 
-            averageDealSize, 
-            conversionRate, 
-            delayMonths, 
-            currentOperatingCost, 
-            inefficiencyRate, 
-            employeeCount, 
-            averageSalary, 
-            marketShare, 
-            scenario 
-          }
+          inputs: { ...baseInputs, scenario }
         });
       }
 

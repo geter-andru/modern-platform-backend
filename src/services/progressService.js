@@ -1,4 +1,5 @@
 import supabaseDataService from './supabaseDataService.js';
+import airtableService from './airtableService.js'; // Keep as fallback during migration
 import makeService from './makeService.js';
 import logger from '../utils/logger.js';
 
@@ -287,7 +288,7 @@ class ProgressService {
   async generateProgressInsights(customerId) {
     try {
       const progress = await this.getCurrentProgress(customerId);
-      const customer = await supabaseDataService.getCustomerById(customerId);
+      const customer = await airtableService.getCustomerById(customerId);
 
       const insights = {
         overallProgress: progress.completionPercentage,

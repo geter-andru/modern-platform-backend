@@ -1,17 +1,16 @@
 import { describe, test, expect, beforeEach, jest } from '@jest/globals';
 import request from 'supertest';
 import app from '../src/server.js';
-import { TEST_USERS, getValidTestUserId, getValidTestUserId2, getInvalidTestUserId } from './fixtures/testUsers.js';
 
-// Mock the supabase data service
-const mockSupabaseDataService = {
+// Mock the airtable service
+const mockAirtableService = {
   getCustomerById: jest.fn(),
   updateCustomer: jest.fn(),
   createUserProgress: jest.fn(),
 };
 
-jest.unstable_mockModule('../src/services/supabaseDataService.js', () => ({
-  default: mockSupabaseDataService
+jest.unstable_mockModule('../src/services/airtableService.js', () => ({
+  default: mockAirtableService
 }));
 
 describe('Business Case Endpoints', () => {
@@ -22,7 +21,7 @@ describe('Business Case Endpoints', () => {
   describe('POST /api/business-case/generate', () => {
     test('should generate pilot program business case', async () => {
       const input = {
-        customerId: getValidTestUserId(),
+        customerId: 'CUST_001',
         type: 'pilot',
         requirements: {
           timeline: '3-6 months',
@@ -61,7 +60,7 @@ describe('Business Case Endpoints', () => {
           },
           metadata: {
             generatedAt: expect.any(String),
-            customerId: getValidTestUserId(),
+            customerId: 'CUST_001',
             version: expect.any(String)
           }
         }
@@ -110,7 +109,7 @@ describe('Business Case Endpoints', () => {
       const response = await request(app)
         .post('/api/business-case/generate')
         .send({
-          customerId: getValidTestUserId(),
+          customerId: 'CUST_001',
           type: 'invalid',
           requirements: {
             timeline: '3 months',
@@ -129,7 +128,7 @@ describe('Business Case Endpoints', () => {
       const response = await request(app)
         .post('/api/business-case/generate')
         .send({
-          customerId: getValidTestUserId()
+          customerId: 'CUST_001'
           // Missing type and requirements
         })
         .expect(400);
@@ -141,7 +140,7 @@ describe('Business Case Endpoints', () => {
       const response = await request(app)
         .post('/api/business-case/generate')
         .send({
-          customerId: getValidTestUserId(),
+          customerId: 'CUST_001',
           type: 'pilot',
           requirements: {
             budget: -1000,
@@ -157,7 +156,7 @@ describe('Business Case Endpoints', () => {
   describe('POST /api/business-case/customize', () => {
     test('should customize existing business case', async () => {
       const input = {
-        customerId: getValidTestUserId(),
+        customerId: 'CUST_001',
         businessCaseId: 'bc_123',
         customizations: {
           executiveSummary: 'Custom executive summary content',
@@ -171,7 +170,7 @@ describe('Business Case Endpoints', () => {
       };
 
       const mockCustomer = {
-        customerId: getValidTestUserId(),
+        customerId: 'CUST_001',
         businessCaseContent: JSON.stringify({
           bc_123: {
             type: 'pilot',
@@ -181,8 +180,8 @@ describe('Business Case Endpoints', () => {
         })
       };
 
-      mockSupabaseDataService.getCustomerById.mockResolvedValue(mockCustomer);
-      mockSupabaseDataService.updateCustomer.mockResolvedValue({});
+      mockAirtableService.getCustomerById.mockResolvedValue(mockCustomer);
+      mockAirtableService.updateCustomer.mockResolvedValue({});
 
       const response = await request(app)
         .post('/api/business-case/customize')
@@ -208,16 +207,16 @@ describe('Business Case Endpoints', () => {
 
     test('should return 404 for non-existent business case', async () => {
       const mockCustomer = {
-        customerId: getValidTestUserId(),
+        customerId: 'CUST_001',
         businessCaseContent: null
       };
 
-      mockSupabaseDataService.getCustomerById.mockResolvedValue(mockCustomer);
+      mockAirtableService.getCustomerById.mockResolvedValue(mockCustomer);
 
       const response = await request(app)
         .post('/api/business-case/customize')
         .send({
-          customerId: getValidTestUserId(),
+          customerId: 'CUST_001',
           businessCaseId: 'bc_nonexistent',
           customizations: {}
         })
@@ -282,7 +281,7 @@ describe('Business Case Endpoints', () => {
   describe('GET /api/business-case/:customerId/history', () => {
     test('should retrieve business case history', async () => {
       const mockCustomer = {
-        customerId: getValidTestUserId(),
+        customerId: 'CUST_001',
         businessCaseContent: JSON.stringify({
           bc_001: {
             type: 'pilot',
@@ -297,7 +296,7 @@ describe('Business Case Endpoints', () => {
         })
       };
 
-      mockSupabaseDataService.getCustomerById.mockResolvedValue(mockCustomer);
+      mockAirtableService.getCustomerById.mockResolvedValue(mockCustomer);
 
       const response = await request(app)
         .get('/api/business-case/CUST_001/history')
@@ -306,7 +305,7 @@ describe('Business Case Endpoints', () => {
       expect(response.body).toMatchObject({
         success: true,
         data: {
-          customerId: getValidTestUserId(),
+          customerId: 'CUST_001',
           businessCases: expect.arrayContaining([
             expect.objectContaining({
               id: 'bc_001',
@@ -325,11 +324,11 @@ describe('Business Case Endpoints', () => {
 
     test('should handle empty history', async () => {
       const mockCustomer = {
-        customerId: getValidTestUserId(),
+        customerId: 'CUST_001',
         businessCaseContent: null
       };
 
-      mockSupabaseDataService.getCustomerById.mockResolvedValue(mockCustomer);
+      mockAirtableService.getCustomerById.mockResolvedValue(mockCustomer);
 
       const response = await request(app)
         .get('/api/business-case/CUST_001/history')
@@ -340,7 +339,7 @@ describe('Business Case Endpoints', () => {
 
     test('should sort history by creation date (newest first)', async () => {
       const mockCustomer = {
-        customerId: getValidTestUserId(),
+        customerId: 'CUST_001',
         businessCaseContent: JSON.stringify({
           bc_old: {
             createdAt: '2024-01-01T10:00:00Z',
@@ -353,7 +352,7 @@ describe('Business Case Endpoints', () => {
         })
       };
 
-      mockSupabaseDataService.getCustomerById.mockResolvedValue(mockCustomer);
+      mockAirtableService.getCustomerById.mockResolvedValue(mockCustomer);
 
       const response = await request(app)
         .get('/api/business-case/CUST_001/history')
@@ -368,7 +367,7 @@ describe('Business Case Endpoints', () => {
   describe('POST /api/business-case/save', () => {
     test('should save generated business case', async () => {
       const businessCaseData = {
-        customerId: getValidTestUserId(),
+        customerId: 'CUST_001',
         businessCase: {
           type: 'pilot',
           executiveSummary: 'Test executive summary',
@@ -378,13 +377,13 @@ describe('Business Case Endpoints', () => {
       };
 
       const mockCustomer = {
-        customerId: getValidTestUserId(),
+        customerId: 'CUST_001',
         customerName: 'Test Customer'
       };
 
-      mockSupabaseDataService.getCustomerById.mockResolvedValue(mockCustomer);
-      mockSupabaseDataService.updateCustomer.mockResolvedValue({});
-      mockSupabaseDataService.createUserProgress.mockResolvedValue({ id: 'rec123' });
+      mockAirtableService.getCustomerById.mockResolvedValue(mockCustomer);
+      mockAirtableService.updateCustomer.mockResolvedValue({});
+      mockAirtableService.createUserProgress.mockResolvedValue({ id: 'rec123' });
 
       const response = await request(app)
         .post('/api/business-case/save')
@@ -394,14 +393,14 @@ describe('Business Case Endpoints', () => {
       expect(response.body).toMatchObject({
         success: true,
         data: {
-          customerId: getValidTestUserId(),
+          customerId: 'CUST_001',
           businessCaseId: expect.any(String),
           saved: true
         }
       });
 
-      expect(mockSupabaseDataService.updateCustomer).toHaveBeenCalledWith(
-        getValidTestUserId(),
+      expect(mockAirtableService.updateCustomer).toHaveBeenCalledWith(
+        'CUST_001',
         expect.objectContaining({
           'Business Case Content': expect.stringContaining('75000')
         })
@@ -410,7 +409,7 @@ describe('Business Case Endpoints', () => {
 
     test('should handle duplicate business case saves', async () => {
       const mockCustomer = {
-        customerId: getValidTestUserId(),
+        customerId: 'CUST_001',
         businessCaseContent: JSON.stringify({
           existing: {
             type: 'pilot',
@@ -419,13 +418,13 @@ describe('Business Case Endpoints', () => {
         })
       };
 
-      mockSupabaseDataService.getCustomerById.mockResolvedValue(mockCustomer);
-      mockSupabaseDataService.updateCustomer.mockResolvedValue({});
+      mockAirtableService.getCustomerById.mockResolvedValue(mockCustomer);
+      mockAirtableService.updateCustomer.mockResolvedValue({});
 
       const response = await request(app)
         .post('/api/business-case/save')
         .send({
-          customerId: getValidTestUserId(),
+          customerId: 'CUST_001',
           businessCase: {
             type: 'pilot',
             executiveSummary: 'New summary'
@@ -444,7 +443,7 @@ describe('Business Case Endpoints', () => {
   describe('POST /api/business-case/export', () => {
     test('should export business case as PDF', async () => {
       const input = {
-        customerId: getValidTestUserId(),
+        customerId: 'CUST_001',
         businessCaseId: 'bc_123',
         format: 'pdf',
         options: {
@@ -454,7 +453,7 @@ describe('Business Case Endpoints', () => {
       };
 
       const mockCustomer = {
-        customerId: getValidTestUserId(),
+        customerId: 'CUST_001',
         businessCaseContent: JSON.stringify({
           bc_123: {
             type: 'pilot',
@@ -464,7 +463,7 @@ describe('Business Case Endpoints', () => {
         })
       };
 
-      mockSupabaseDataService.getCustomerById.mockResolvedValue(mockCustomer);
+      mockAirtableService.getCustomerById.mockResolvedValue(mockCustomer);
 
       const response = await request(app)
         .post('/api/business-case/export')
@@ -484,19 +483,19 @@ describe('Business Case Endpoints', () => {
 
     test('should export business case as Word document', async () => {
       const input = {
-        customerId: getValidTestUserId(),
+        customerId: 'CUST_001',
         businessCaseId: 'bc_123',
         format: 'docx'
       };
 
       const mockCustomer = {
-        customerId: getValidTestUserId(),
+        customerId: 'CUST_001',
         businessCaseContent: JSON.stringify({
           bc_123: { type: 'pilot' }
         })
       };
 
-      mockSupabaseDataService.getCustomerById.mockResolvedValue(mockCustomer);
+      mockAirtableService.getCustomerById.mockResolvedValue(mockCustomer);
 
       const response = await request(app)
         .post('/api/business-case/export')
@@ -510,7 +509,7 @@ describe('Business Case Endpoints', () => {
       const response = await request(app)
         .post('/api/business-case/export')
         .send({
-          customerId: getValidTestUserId(),
+          customerId: 'CUST_001',
           businessCaseId: 'bc_123',
           format: 'invalid'
         })

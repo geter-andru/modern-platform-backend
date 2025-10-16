@@ -3,7 +3,7 @@ import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
 import crypto from 'crypto';
 import config from '../config/index.js';
-import supabaseDataService from './supabaseDataService.js';
+import airtableService from './airtableService.js';
 import logger from '../utils/logger.js';
 
 class AuthService {
@@ -64,28 +64,34 @@ class AuthService {
   }
 
   /**
-   * Generate customer access token (Supabase JWT-based)
+   * Generate customer access token (for customer-specific API access)
    */
   async generateCustomerAccessToken(customerId) {
     try {
       // Verify customer exists
-      const customer = await supabaseDataService.getCustomerById(customerId);
+      const customer = await airtableService.getCustomerById(customerId);
       if (!customer) {
         throw new Error('Customer not found');
       }
 
-      // Generate Supabase-compatible JWT token
-      const accessToken = this.generateToken(customerId, 'access');
+      // Generate secure access token
+      const accessToken = crypto.randomBytes(32).toString('hex');
+      const hashedToken = await bcrypt.hash(accessToken, 12);
+      
+      // Store hashed token in customer record
+      await airtableService.updateCustomer(customerId, {
+        'Access Token': hashedToken,
+        'Token Generated At': new Date().toISOString(),
+        'Token Last Used': new Date().toISOString()
+      });
 
-      logger.info(`Generated Supabase JWT access token for customer ${customerId}`);
+      logger.info(`Generated access token for customer ${customerId}`);
       
       return {
         accessToken,
         customerId,
-        generatedAt: new Date().toISOString(),
-        expiresIn: '24h',
-        tokenType: 'Bearer',
-        usage: 'Include in Authorization header as Bearer token'
+        expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(), // 1 year
+        permissions: ['read', 'write'] // Default permissions
       };
     } catch (error) {
       logger.error(`Failed to generate customer access token: ${error.message}`);
@@ -98,7 +104,7 @@ class AuthService {
    */
   async validateCustomerAccessToken(customerId, providedToken) {
     try {
-      const customer = await supabaseDataService.getCustomerById(customerId);
+      const customer = await airtableService.getCustomerById(customerId);
       if (!customer || !customer.accessToken) {
         return { valid: false, reason: 'No access token found for customer' };
       }
@@ -107,7 +113,7 @@ class AuthService {
       
       if (isValid) {
         // Update last used timestamp
-        await supabaseDataService.updateCustomer(customerId, {
+        await airtableService.updateCustomer(customerId, {
           'Token Last Used': new Date().toISOString()
         });
 
@@ -137,7 +143,7 @@ class AuthService {
    */
   async revokeCustomerAccessToken(customerId) {
     try {
-      await supabaseDataService.updateCustomer(customerId, {
+      await airtableService.updateCustomer(customerId, {
         'Access Token': null,
         'Token Revoked At': new Date().toISOString()
       });
@@ -192,7 +198,7 @@ class AuthService {
    */
   async getCustomerPermissions(customerId) {
     try {
-      const customer = await supabaseDataService.getCustomerById(customerId);
+      const customer = await airtableService.getCustomerById(customerId);
       
       if (!customer) {
         return { permissions: [] };

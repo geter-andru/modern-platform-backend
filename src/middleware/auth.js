@@ -157,10 +157,6 @@ export const authenticateMulti = async (req, res, next) => {
 
   // Try Supabase JWT first (primary authentication method)
   if (authHeader && authHeader.startsWith('Bearer ')) {
-    // In test environment, use regular JWT authentication instead of Supabase validation
-    if (process.env.NODE_ENV === 'test') {
-      return authenticateJWT(req, res, next);
-    }
     return authenticateSupabaseJWT(req, res, next);
   }
 
@@ -303,15 +299,6 @@ export const customerRateLimit = (maxRequests = 100, windowMs = 15 * 60 * 1000) 
   const requestCounts = new Map();
   
   return (req, res, next) => {
-    // Skip rate limiting in test environment
-    if (process.env.NODE_ENV === 'test') {
-      // Still add headers for test compatibility
-      res.setHeader('X-RateLimit-Limit', maxRequests);
-      res.setHeader('X-RateLimit-Remaining', maxRequests);
-      res.setHeader('X-RateLimit-Reset', new Date(Date.now() + windowMs).toISOString());
-      return next();
-    }
-    
     const customerId = req.auth?.customerId || req.ip;
     const now = Date.now();
     const windowStart = now - windowMs;

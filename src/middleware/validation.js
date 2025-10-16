@@ -1,6 +1,7 @@
 import Joi from 'joi';
 
-// Customer ID validation schema - Supabase UUID format only
+// Customer ID validation schema
+// Updated for Supabase migration - only accepts UUID format
 const customerIdSchema = Joi.string()
   .uuid()
   .required()
@@ -22,22 +23,6 @@ const costCalculationSchema = Joi.object({
   averageSalary: Joi.number().min(0).max(1000000).required(),
   marketShare: Joi.number().min(0).max(1).required(),
   scenario: Joi.string().valid('conservative', 'realistic', 'aggressive').default('realistic')
-});
-
-const costComparisonSchema = Joi.object({
-  customerId: customerIdSchema,
-  potentialDeals: Joi.number().min(0).max(10000).required(),
-  averageDealSize: Joi.number().min(0).max(10000000).required(),
-  conversionRate: Joi.number().min(0).max(1).required(),
-  delayMonths: Joi.number().min(0).max(24).required(),
-  currentOperatingCost: Joi.number().min(0).max(100000000).required(),
-  inefficiencyRate: Joi.number().min(0).max(1).required(),
-  employeeCount: Joi.number().min(1).max(100000).required(),
-  averageSalary: Joi.number().min(0).max(1000000).required(),
-  marketShare: Joi.number().min(0).max(1).required(),
-  scenarios: Joi.array().items(
-    Joi.string().valid('conservative', 'realistic', 'aggressive')
-  ).min(1).max(3).required()
 });
 
 // Authentication validation schemas
@@ -133,7 +118,6 @@ export {
   validate,
   customerIdSchema,
   costCalculationSchema,
-  costComparisonSchema,
   businessCaseSchema,
   exportFormatSchema,
   paramSchemas,
