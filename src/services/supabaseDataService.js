@@ -428,6 +428,7 @@ class SupabaseDataService {
       'Customer Name': 'customer_name',
       'Email': 'email',
       'Company': 'company',
+      'Access Token': 'access_token',
       'ICP Content': 'icp_content',
       'Cost Calculator Content': 'cost_calculator_content',
       'Business Case Content': 'business_case_content',
@@ -436,6 +437,9 @@ class SupabaseDataService {
       'Payment Status': 'payment_status',
       'Usage Count': 'usage_count',
       'Last Accessed': 'last_accessed',
+      'Token Generated At': 'token_generated_at',
+      'Token Last Used': 'token_last_used',
+      'Token Revoked At': 'token_revoked_at',
       'Created At': 'created_at',
       'Updated At': 'updated_at',
     };

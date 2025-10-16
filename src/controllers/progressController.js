@@ -1,5 +1,5 @@
 import progressService from '../services/progressService.js';
-import airtableService from '../services/airtableService.js';
+import supabaseDataService from '../services/supabaseDataService.js';
 import logger from '../utils/logger.js';
 
 const progressController = {
@@ -216,7 +216,7 @@ const progressController = {
       logger.info('Getting progress analytics for all customers');
 
       // Get all customers
-      const customers = await airtableService.getAllCustomers(limit);
+      const customers = await supabaseDataService.getAllCustomers(limit);
       
       // Get progress for each customer
       const analytics = [];

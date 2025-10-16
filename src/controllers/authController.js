@@ -1,5 +1,5 @@
 import authService from '../services/authService.js';
-import airtableService from '../services/airtableService.js';
+import supabaseDataService from '../services/supabaseDataService.js';
 import logger from '../utils/logger.js';
 
 const authController = {
@@ -18,7 +18,7 @@ const authController = {
       }
 
       // Verify customer exists
-      const customer = await airtableService.getCustomerById(customerId);
+      const customer = await supabaseDataService.getCustomerById(customerId);
       if (!customer) {
         return res.status(404).json({
           success: false,
@@ -211,7 +211,7 @@ const authController = {
       }
 
       // Verify customer exists
-      const customer = await airtableService.getCustomerById(customerId);
+      const customer = await supabaseDataService.getCustomerById(customerId);
       if (!customer) {
         return res.status(404).json({
           success: false,
@@ -283,7 +283,7 @@ const authController = {
       const { customerId, method, decoded } = req.auth;
       
       // Get customer data for validation
-      const customer = await airtableService.getCustomerById(customerId);
+      const customer = await supabaseDataService.getCustomerById(customerId);
       if (!customer) {
         return res.status(404).json({
           success: false,

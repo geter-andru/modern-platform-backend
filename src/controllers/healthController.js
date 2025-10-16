@@ -1,4 +1,4 @@
-import airtableService from '../services/airtableService.js';
+import supabaseDataService from '../services/supabaseDataService.js';
 import logger from '../utils/logger.js';
 
 const healthController = {
@@ -33,33 +33,34 @@ const healthController = {
     try {
       const startTime = Date.now();
       
-      // Check Airtable connectivity
-      let airtableStatus = 'unknown';
-      let airtableResponseTime = null;
+      // Check Supabase connectivity
+      let supabaseStatus = 'unknown';
+      let supabaseResponseTime = null;
       
       try {
-        const airtableStart = Date.now();
-        await airtableService.testConnection();
-        airtableResponseTime = Date.now() - airtableStart;
-        airtableStatus = 'healthy';
+        const supabaseStart = Date.now();
+        // Test Supabase connection by querying customer_assets table
+        await supabaseDataService.getAllCustomers(1);
+        supabaseResponseTime = Date.now() - supabaseStart;
+        supabaseStatus = 'healthy';
       } catch (error) {
-        airtableStatus = 'unhealthy';
-        logger.error('Airtable health check failed:', error);
+        supabaseStatus = 'unhealthy';
+        logger.error('Supabase health check failed:', error);
       }
 
       const totalResponseTime = Date.now() - startTime;
 
       const healthStatus = {
-        status: airtableStatus === 'healthy' ? 'healthy' : 'degraded',
+        status: supabaseStatus === 'healthy' ? 'healthy' : 'degraded',
         timestamp: new Date().toISOString(),
         version: process.env.npm_package_version || '1.0.0',
         environment: process.env.NODE_ENV || 'development',
         uptime: process.uptime(),
         memory: process.memoryUsage(),
         dependencies: {
-          airtable: {
-            status: airtableStatus,
-            responseTime: airtableResponseTime,
+          supabase: {
+            status: supabaseStatus,
+            responseTime: supabaseResponseTime,
           }
         },
         responseTime: totalResponseTime

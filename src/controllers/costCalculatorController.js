@@ -1,5 +1,5 @@
 import supabaseDataService from '../services/supabaseDataService.js';
-import airtableService from '../services/airtableService.js'; // Keep as fallback
+// import airtableService from '../services/airtableService.js'; // REMOVED - migration complete
 import aiService from '../services/aiService.js';
 import makeService from '../services/makeService.js';
 import logger from '../utils/logger.js';

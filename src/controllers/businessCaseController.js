@@ -1,5 +1,5 @@
 import supabaseDataService from '../services/supabaseDataService.js';
-import airtableService from '../services/airtableService.js'; // Keep as fallback
+// import airtableService from '../services/airtableService.js'; // REMOVED - migration complete
 import logger from '../utils/logger.js';
 
 const businessCaseController = {
