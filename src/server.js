@@ -1,3 +1,7 @@
+// IMPORTANT: Sentry must be imported and initialized FIRST
+import { initializeSentry } from './utils/sentry.js';
+initializeSentry();
+
 import express from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
@@ -9,19 +13,28 @@ import config from './config/index.js';
 import logger from './utils/logger.js';
 import routes from './routes/index.js';
 import errorHandler from './middleware/errorHandler.js';
-import { 
-  rateLimiter, 
-  corsOptions, 
-  helmetConfig, 
-  requestLogger, 
-  sanitizeInput 
+import {
+  rateLimiter,
+  corsOptions,
+  helmetConfig,
+  requestLogger,
+  sanitizeInput
 } from './middleware/security.js';
+import {
+  sentryRequestHandler,
+  sentryTracingHandler,
+  sentryErrorHandler,
+} from './middleware/sentryMiddleware.js';
 
 // Create Express application
 const app = express();
 
 // Trust proxy for accurate IP addresses behind load balancers
 app.set('trust proxy', 1);
+
+// Sentry middleware (must be FIRST to capture all requests)
+app.use(sentryRequestHandler());
+app.use(sentryTracingHandler());
 
 // Security middleware
 app.use(helmet(helmetConfig));
@@ -50,6 +63,9 @@ app.use((req, res, next) => {
 // Routes
 app.use('/', routes);
 
+// Sentry error handler (must be AFTER routes, BEFORE other error handlers)
+app.use(sentryErrorHandler());
+
 // Error handling middleware (must be last)
 app.use(errorHandler);
 
@@ -73,13 +89,25 @@ process.on('SIGINT', () => {
 // Handle uncaught exceptions
 process.on('uncaughtException', (error) => {
   logger.error('Uncaught Exception:', error);
-  process.exit(1);
+  // Send to Sentry before exiting
+  import('./utils/sentry.js').then(({ default: Sentry }) => {
+    Sentry.captureException(error);
+    Sentry.close(2000).then(() => {
+      process.exit(1);
+    });
+  });
 });
 
 // Handle unhandled rejections
 process.on('unhandledRejection', (reason, promise) => {
   logger.error('Unhandled Rejection at:', promise, 'reason:', reason);
-  process.exit(1);
+  // Send to Sentry before exiting
+  import('./utils/sentry.js').then(({ default: Sentry }) => {
+    Sentry.captureException(reason);
+    Sentry.close(2000).then(() => {
+      process.exit(1);
+    });
+  });
 });
 
 // Start server only if not in test environment

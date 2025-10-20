@@ -7,6 +7,7 @@ import exportController from '../controllers/exportController.js';
 import authRoutes from './auth.js';
 import webhookRoutes from './webhooks.js';
 import progressRoutes from './progress.js';
+import testRoutes from './testRoutes.js';
 import { validate, paramSchemas, costCalculationSchema, businessCaseSchema } from '../middleware/validation.js';
 import { strictRateLimiter } from '../middleware/security.js';
 import { authenticateMulti, requireCustomerContext, customerRateLimit } from '../middleware/auth.js';
@@ -16,6 +17,11 @@ const router = express.Router();
 // Health check routes (public)
 router.get('/health', healthController.checkHealth);
 router.get('/health/detailed', healthController.checkHealthDetailed);
+
+// Test routes (development/staging only - for Sentry verification)
+if (process.env.NODE_ENV !== 'production') {
+  router.use('/test', testRoutes);
+}
 
 // Authentication routes (public)
 router.use('/api/auth', authRoutes);
