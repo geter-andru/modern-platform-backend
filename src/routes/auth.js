@@ -8,13 +8,6 @@ const router = express.Router();
 // Auth status endpoint (public)
 router.get('/status', authController.authStatus);
 
-// Generate JWT token
-router.post('/token', 
-  customerRateLimit(20, 15 * 60 * 1000), // 20 requests per 15 minutes
-  validate(authSchemas.generateToken),
-  authController.generateToken
-);
-
 // Refresh JWT token
 router.post('/refresh',
   customerRateLimit(10, 15 * 60 * 1000), // 10 requests per 15 minutes
@@ -26,20 +19,6 @@ router.post('/refresh',
 router.get('/verify',
   customerRateLimit(50, 15 * 60 * 1000), // 50 requests per 15 minutes
   authController.verifyToken
-);
-
-// Generate customer access token
-router.post('/customer-token',
-  customerRateLimit(5, 60 * 60 * 1000), // 5 requests per hour
-  validate(authSchemas.generateCustomerToken),
-  authController.generateCustomerToken
-);
-
-// Revoke customer access token
-router.delete('/customer-token/:customerId',
-  customerRateLimit(10, 60 * 60 * 1000), // 10 requests per hour
-  validate(authSchemas.customerId, 'params'),
-  authController.revokeCustomerToken
 );
 
 // Generate API key

@@ -49,60 +49,6 @@ export const authenticateJWT = async (req, res, next) => {
 };
 
 /**
- * Customer Access Token Authentication Middleware
- * Validates customer-specific access tokens
- */
-export const authenticateCustomerToken = async (req, res, next) => {
-  try {
-    const customerId = req.params.customerId || req.body.customerId;
-    const accessToken = req.headers['x-access-token'] || req.query.accessToken;
-
-    if (!customerId) {
-      return res.status(400).json({
-        success: false,
-        error: 'Customer ID required',
-        details: 'Provide customerId in URL path or request body'
-      });
-    }
-
-    if (!accessToken) {
-      return res.status(401).json({
-        success: false,
-        error: 'Access token required',
-        details: 'Provide token in X-Access-Token header or accessToken query parameter'
-      });
-    }
-
-    const validation = await authService.validateCustomerAccessToken(customerId, accessToken);
-
-    if (!validation.valid) {
-      return res.status(401).json({
-        success: false,
-        error: 'Invalid access token',
-        details: validation.reason
-      });
-    }
-
-    // Add customer info to request
-    req.customer = validation.customer;
-    req.auth = {
-      customerId,
-      method: 'customer-token',
-      customer: validation.customer
-    };
-
-    logger.info(`Customer token authenticated for ${customerId}`);
-    next();
-  } catch (error) {
-    logger.error(`Customer token authentication error: ${error.message}`);
-    return res.status(500).json({
-      success: false,
-      error: 'Authentication service error'
-    });
-  }
-};
-
-/**
  * API Key Authentication Middleware
  * Validates API keys for external integrations
  */
@@ -148,11 +94,10 @@ export const authenticateApiKey = async (req, res, next) => {
 
 /**
  * Multi-method Authentication Middleware
- * Accepts Supabase JWT (primary), legacy JWT, customer token, or API key
+ * Accepts Supabase JWT (primary) or API key
  */
 export const authenticateMulti = async (req, res, next) => {
   const authHeader = req.headers.authorization;
-  const customerToken = req.headers['x-access-token'];
   const apiKey = req.headers['x-api-key'];
 
   // Try Supabase JWT first (primary authentication method)
@@ -160,25 +105,19 @@ export const authenticateMulti = async (req, res, next) => {
     return authenticateSupabaseJWT(req, res, next);
   }
 
-  // Try API key
+  // Try API key for external integrations
   if (apiKey) {
     return authenticateApiKey(req, res, next);
-  }
-
-  // Try customer token
-  if (customerToken) {
-    return authenticateCustomerToken(req, res, next);
   }
 
   // No valid authentication method found
   return res.status(401).json({
     success: false,
     error: 'Authentication required',
-    details: 'Provide Supabase JWT token, API key, or customer access token',
+    details: 'Provide Supabase JWT token or API key',
     acceptedMethods: [
       'Authorization: Bearer <supabase-jwt-token>',
-      'X-API-Key: <api-key>',
-      'X-Access-Token: <customer-token>'
+      'X-API-Key: <api-key>'
     ]
   });
 };
@@ -344,7 +283,6 @@ export const customerRateLimit = (maxRequests = 100, windowMs = 15 * 60 * 1000) 
 
 export default {
   authenticateJWT,
-  authenticateCustomerToken,
   authenticateApiKey,
   authenticateMulti,
   requirePermission,

@@ -4,55 +4,6 @@ import logger from '../utils/logger.js';
 
 const authController = {
   /**
-   * Generate JWT token for customer
-   */
-  async generateToken(req, res) {
-    try {
-      const { customerId } = req.body;
-
-      if (!customerId) {
-        return res.status(400).json({
-          success: false,
-          error: 'Customer ID required'
-        });
-      }
-
-      // Verify customer exists
-      const customer = await supabaseDataService.getCustomerById(customerId);
-      if (!customer) {
-        return res.status(404).json({
-          success: false,
-          error: 'Customer not found'
-        });
-      }
-
-      // Generate tokens
-      const accessToken = authService.generateToken(customerId, 'access');
-      const refreshToken = authService.generateRefreshToken(customerId);
-
-      logger.info(`Generated JWT tokens for customer ${customerId}`);
-
-      res.status(200).json({
-        success: true,
-        data: {
-          accessToken,
-          refreshToken,
-          tokenType: 'Bearer',
-          expiresIn: '24h',
-          customer: {
-            customerId: customer.customerId,
-            customerName: customer.customerName,
-            company: customer.company
-          }
-        }
-      });
-    } catch (error) {
-      logger.error(`Error generating JWT token: ${error.message}`);
-      throw error;
-    }
-  },
-
-  /**
    * Refresh JWT token
    */
   async refreshToken(req, res) {
@@ -129,69 +80,6 @@ const authController = {
       });
     } catch (error) {
       logger.error(`Error verifying token: ${error.message}`);
-      throw error;
-    }
-  },
-
-  /**
-   * Generate customer access token
-   */
-  async generateCustomerToken(req, res) {
-    try {
-      const { customerId } = req.body;
-
-      if (!customerId) {
-        return res.status(400).json({
-          success: false,
-          error: 'Customer ID required'
-        });
-      }
-
-      const result = await authService.generateCustomerAccessToken(customerId);
-
-      res.status(200).json({
-        success: true,
-        data: result
-      });
-    } catch (error) {
-      if (error.message === 'Customer not found') {
-        return res.status(404).json({
-          success: false,
-          error: 'Customer not found'
-        });
-      }
-
-      logger.error(`Error generating customer token: ${error.message}`);
-      throw error;
-    }
-  },
-
-  /**
-   * Revoke customer access token
-   */
-  async revokeCustomerToken(req, res) {
-    try {
-      const { customerId } = req.params;
-
-      if (!customerId) {
-        return res.status(400).json({
-          success: false,
-          error: 'Customer ID required'
-        });
-      }
-
-      const result = await authService.revokeCustomerAccessToken(customerId);
-
-      res.status(200).json({
-        success: true,
-        data: {
-          customerId,
-          revoked: result.revoked,
-          revokedAt: new Date().toISOString()
-        }
-      });
-    } catch (error) {
-      logger.error(`Error revoking customer token: ${error.message}`);
       throw error;
     }
   },
@@ -325,13 +213,10 @@ const authController = {
         success: true,
         data: {
           authService: 'operational',
-          supportedMethods: ['JWT', 'Customer Token', 'API Key'],
+          supportedMethods: ['Supabase JWT', 'API Key'],
           endpoints: {
-            generateToken: 'POST /api/auth/token',
             refreshToken: 'POST /api/auth/refresh',
             verifyToken: 'GET /api/auth/verify',
-            generateCustomerToken: 'POST /api/auth/customer-token',
-            revokeCustomerToken: 'DELETE /api/auth/customer-token/:customerId',
             generateApiKey: 'POST /api/auth/api-key',
             permissions: 'GET /api/auth/permissions',
             validate: 'GET /api/auth/validate'
