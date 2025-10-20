@@ -41,29 +41,34 @@ const strictRateLimiter = rateLimit({
 // CORS configuration
 const corsOptions = {
   origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
-
     const allowedOrigins = Array.isArray(config.security.corsOrigin)
       ? config.security.corsOrigin
       : [config.security.corsOrigin];
 
-    // Debug logging to verify allowed origins
-    if (config.server.nodeEnv === 'development' || config.server.nodeEnv === 'production') {
-      logger.info(`CORS check - Origin: ${origin}, Allowed: ${JSON.stringify(allowedOrigins)}`);
+    // Allow requests with no origin ONLY in development (for tools like Postman, curl)
+    if (!origin) {
+      if (config.server.nodeEnv === 'development') {
+        logger.info('CORS: Allowing no-origin request in development');
+        return callback(null, true);
+      } else {
+        logger.warn('CORS: Blocked no-origin request in production');
+        return callback(null, false);
+      }
     }
+
+    // Debug logging to verify allowed origins
+    logger.info(`CORS check - Origin: ${origin}, Allowed: ${JSON.stringify(allowedOrigins)}`);
 
     if (allowedOrigins.indexOf(origin) !== -1) {
       callback(null, true);
     } else {
       logger.warn(`CORS blocked request from origin: ${origin}`);
-      // Return false instead of Error to avoid 500 errors
       callback(null, false);
     }
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-Access-Token', 'X-API-Key'],
   exposedHeaders: ['X-RateLimit-Limit', 'X-RateLimit-Remaining', 'X-RateLimit-Reset']
 };
 

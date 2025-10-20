@@ -17,7 +17,7 @@ const config = {
 
   // JWT Configuration
   jwt: {
-    secret: process.env.JWT_SECRET || 'default-secret-key-change-in-production',
+    secret: process.env.JWT_SECRET, // No fallback - must be set in environment
     expiresIn: process.env.JWT_EXPIRES_IN || '24h',
     refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
   },
@@ -75,6 +75,7 @@ const config = {
 
 // Validation for required environment variables
 const requiredEnvVars = [
+  'JWT_SECRET',
   'SUPABASE_URL',
   'SUPABASE_SERVICE_ROLE_KEY',
 ];
