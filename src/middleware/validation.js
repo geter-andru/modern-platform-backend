@@ -27,25 +27,17 @@ const costCalculationSchema = Joi.object({
 
 // Authentication validation schemas
 const authSchemas = {
-  generateToken: Joi.object({
-    customerId: customerIdSchema
-  }),
-  
   refreshToken: Joi.object({
     refreshToken: Joi.string().required().messages({
       'string.empty': 'Refresh token is required',
       'any.required': 'Refresh token is required'
     })
   }),
-  
-  generateCustomerToken: Joi.object({
-    customerId: customerIdSchema
-  }),
-  
+
   generateApiKey: Joi.object({
     customerId: customerIdSchema
   }),
-  
+
   customerId: Joi.object({
     customerId: customerIdSchema
   })
