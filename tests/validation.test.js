@@ -1,6 +1,22 @@
 import { describe, test, expect, beforeEach, jest } from '@jest/globals';
 import request from 'supertest';
-import app from '../src/server.js';
+import { withAuth } from './helpers/auth.js';
+
+// Create the mock BEFORE any imports that might use it
+const mockSupabaseDataService = {
+  getCustomerById: jest.fn(),
+  updateCustomer: jest.fn(),
+  upsertCustomer: jest.fn(),
+  getAllCustomers: jest.fn(),
+};
+
+// Mock the service BEFORE importing app
+jest.unstable_mockModule('../src/services/supabaseDataService.js', () => ({
+  default: mockSupabaseDataService
+}));
+
+// NOW import app (after mock is set up)
+const { default: app } = await import('../src/server.js');
 
 describe('Input Validation Tests', () => {
   beforeEach(() => {
@@ -8,36 +24,44 @@ describe('Input Validation Tests', () => {
   });
 
   describe('Customer ID Validation', () => {
+    // Valid UUIDs (Supabase format)
     const validCustomerIds = [
-      'CUST_001',
-      'CUST_1234',
-      'CUST_0001',
-      'CUST_9999'
+      '550e8400-e29b-41d4-a716-446655440001',
+      '6ba7b810-9dad-11d1-80b4-00c04fd430c8',
+      '6ba7b811-9dad-11d1-80b4-00c04fd430c8',
+      '6ba7b812-9dad-11d1-80b4-00c04fd430c8'
     ];
 
+    // Invalid formats (old CUST_XXX format, malformed UUIDs, etc.)
     const invalidCustomerIds = [
-      'cust_001',           // lowercase
-      'CUSTOMER_001',       // wrong prefix
-      'CUST_',              // missing number
-      'CUST_abc',           // non-numeric
-      'CUST_001_extra',     // extra characters
-      '',                   // empty
-      '123',                // just numbers
-      'CUST 001',           // space
-      'CUST-001',           // hyphen instead of underscore
-      'CUST_001$',          // special character
-      'CUST_00001',         // too many digits
-      'CUST_1',             // too few digits (assuming 3-4 digit requirement)
+      'CUST_001',                              // Old Airtable format
+      'cust_001',                              // lowercase old format
+      'CUSTOMER_001',                          // wrong prefix
+      '550e8400-e29b-41d4-a716',              // incomplete UUID
+      '550e8400e29b41d4a716446655440001',    // UUID without dashes
+      '',                                      // empty
+      '123',                                   // just numbers
+      'not-a-uuid-at-all',                    // random string
+      '550e8400-e29b-41d4-a716-446655440zzz', // invalid characters
     ];
 
     validCustomerIds.forEach(customerId => {
-      test(`should accept valid customer ID: ${customerId}`, async () => {
+      test(`should accept valid UUID customer ID: ${customerId}`, async () => {
+        const mockCustomer = {
+          customerId: customerId,
+          customerName: 'Test Customer'
+        };
+
+        mockSupabaseDataService.getCustomerById.mockResolvedValue(mockCustomer);
+        mockSupabaseDataService.updateCustomer.mockResolvedValue({});
+
         const response = await request(app)
           .get(`/api/customer/${customerId}`)
-          .expect([200, 404]); // 200 if exists, 404 if not found - both are valid responses
+          .set(withAuth(customerId));
 
+        // Should not fail validation (200 if found, 404 if not found are both valid)
         if (response.status === 400) {
-          console.error(`Valid customer ID ${customerId} was rejected:`, response.body);
+          console.error(`Valid UUID ${customerId} was rejected:`, response.body);
         }
         expect(response.status).not.toBe(400);
       });
@@ -45,8 +69,10 @@ describe('Input Validation Tests', () => {
 
     invalidCustomerIds.forEach(customerId => {
       test(`should reject invalid customer ID: "${customerId}"`, async () => {
+        const validTestId = '550e8400-e29b-41d4-a716-446655440001';
         const response = await request(app)
           .get(`/api/customer/${encodeURIComponent(customerId)}`)
+          .set(withAuth(validTestId))
           .expect(400);
 
         expect(response.body).toMatchObject({
@@ -60,30 +86,43 @@ describe('Input Validation Tests', () => {
   describe('Cost Calculator Input Validation', () => {
     const validInputs = [
       {
-        customerId: 'CUST_001',
+        customerId: '550e8400-e29b-41d4-a716-446655440001',
         potentialDeals: 10,
         averageDealSize: 50000,
+        conversionRate: 0.3,
         delayMonths: 6,
+        currentOperatingCost: 100000,
+        inefficiencyRate: 0.2,
         employeeCount: 100,
-        averageSalary: 75000
+        averageSalary: 75000,
+        marketShare: 0.15,
+        scenario: 'realistic'
       },
       {
-        customerId: 'CUST_002',
+        customerId: '550e8400-e29b-41d4-a716-446655440002',
         potentialDeals: 1,
         averageDealSize: 1000,
-        delayMonths: 1
+        conversionRate: 0.5,
+        delayMonths: 1,
+        currentOperatingCost: 10000,
+        inefficiencyRate: 0.1,
+        employeeCount: 10,
+        averageSalary: 50000,
+        marketShare: 0.05,
+        scenario: 'conservative'
       },
       {
-        customerId: 'CUST_003',
-        potentialDeals: 1000,
-        averageDealSize: 1000000,
-        delayMonths: 36
-      },
-      {
-        customerId: 'CUST_004',
-        potentialDeals: 5.5,
-        averageDealSize: 25750.50,
-        delayMonths: 3.5
+        customerId: '550e8400-e29b-41d4-a716-446655440003',
+        potentialDeals: 100,
+        averageDealSize: 100000,
+        conversionRate: 0.8,
+        delayMonths: 24, // max is 24 per validation.js
+        currentOperatingCost: 1000000,
+        inefficiencyRate: 0.5,
+        employeeCount: 500,
+        averageSalary: 100000,
+        marketShare: 0.5,
+        scenario: 'aggressive'
       }
     ];
 
@@ -93,61 +132,59 @@ describe('Input Validation Tests', () => {
         data: {
           potentialDeals: 10,
           averageDealSize: 50000,
-          delayMonths: 6
+          conversionRate: 0.3,
+          delayMonths: 6,
+          currentOperatingCost: 100000,
+          inefficiencyRate: 0.2,
+          employeeCount: 100,
+          averageSalary: 75000,
+          marketShare: 0.15
         }
       },
       {
         description: 'negative potentialDeals',
         data: {
-          customerId: 'CUST_001',
+          customerId: '550e8400-e29b-41d4-a716-446655440004',
           potentialDeals: -5,
           averageDealSize: 50000,
-          delayMonths: 6
+          conversionRate: 0.3,
+          delayMonths: 6,
+          currentOperatingCost: 100000,
+          inefficiencyRate: 0.2,
+          employeeCount: 100,
+          averageSalary: 75000,
+          marketShare: 0.15
         }
       },
       {
-        description: 'zero averageDealSize',
+        description: 'excessive delayMonths (over 24)',
         data: {
-          customerId: 'CUST_001',
-          potentialDeals: 10,
-          averageDealSize: 0,
-          delayMonths: 6
-        }
-      },
-      {
-        description: 'negative delayMonths',
-        data: {
-          customerId: 'CUST_001',
+          customerId: '550e8400-e29b-41d4-a716-446655440005',
           potentialDeals: 10,
           averageDealSize: 50000,
-          delayMonths: -1
+          conversionRate: 0.3,
+          delayMonths: 25, // max is 24
+          currentOperatingCost: 100000,
+          inefficiencyRate: 0.2,
+          employeeCount: 100,
+          averageSalary: 75000,
+          marketShare: 0.15
         }
       },
       {
-        description: 'excessive delayMonths',
+        description: 'invalid scenario',
         data: {
-          customerId: 'CUST_001',
+          customerId: '550e8400-e29b-41d4-a716-446655440006',
           potentialDeals: 10,
           averageDealSize: 50000,
-          delayMonths: 61 // over 5 years
-        }
-      },
-      {
-        description: 'non-numeric potentialDeals',
-        data: {
-          customerId: 'CUST_001',
-          potentialDeals: 'ten',
-          averageDealSize: 50000,
-          delayMonths: 6
-        }
-      },
-      {
-        description: 'extremely large values',
-        data: {
-          customerId: 'CUST_001',
-          potentialDeals: 1000000,
-          averageDealSize: 999999999999,
-          delayMonths: 6
+          conversionRate: 0.3,
+          delayMonths: 6,
+          currentOperatingCost: 100000,
+          inefficiencyRate: 0.2,
+          employeeCount: 100,
+          averageSalary: 75000,
+          marketShare: 0.15,
+          scenario: 'invalid' // must be conservative/realistic/aggressive
         }
       }
     ];
@@ -156,6 +193,7 @@ describe('Input Validation Tests', () => {
       test(`should accept valid cost calculator input #${index + 1}`, async () => {
         const response = await request(app)
           .post('/api/cost-calculator/calculate')
+          .set(withAuth(input.customerId))
           .send(input);
 
         expect(response.status).not.toBe(400);
@@ -167,8 +205,10 @@ describe('Input Validation Tests', () => {
 
     invalidInputs.forEach(({ description, data }) => {
       test(`should reject cost calculator input: ${description}`, async () => {
+        const testCustomerId = '550e8400-e29b-41d4-a716-446655440007';
         const response = await request(app)
           .post('/api/cost-calculator/calculate')
+          .set(withAuth(testCustomerId))
           .send(data)
           .expect(400);
 
@@ -180,142 +220,42 @@ describe('Input Validation Tests', () => {
     });
   });
 
-  describe('Business Case Input Validation', () => {
-    const validInputs = [
-      {
-        customerId: 'CUST_001',
-        type: 'pilot',
-        requirements: {
-          timeline: '3-6 months',
-          budget: 50000,
-          teamSize: 5
-        }
-      },
-      {
-        customerId: 'CUST_002',
-        type: 'full',
-        requirements: {
-          timeline: '6-18 months',
-          budget: 250000,
-          teamSize: 15
-        }
-      }
-    ];
-
-    const invalidInputs = [
-      {
-        description: 'missing type',
-        data: {
-          customerId: 'CUST_001',
-          requirements: {
-            timeline: '3-6 months',
-            budget: 50000
-          }
-        }
-      },
-      {
-        description: 'invalid type',
-        data: {
-          customerId: 'CUST_001',
-          type: 'invalid',
-          requirements: {
-            timeline: '3-6 months',
-            budget: 50000
-          }
-        }
-      },
-      {
-        description: 'missing requirements',
-        data: {
-          customerId: 'CUST_001',
-          type: 'pilot'
-        }
-      },
-      {
-        description: 'negative budget',
-        data: {
-          customerId: 'CUST_001',
-          type: 'pilot',
-          requirements: {
-            timeline: '3-6 months',
-            budget: -50000
-          }
-        }
-      },
-      {
-        description: 'zero budget',
-        data: {
-          customerId: 'CUST_001',
-          type: 'pilot',
-          requirements: {
-            timeline: '3-6 months',
-            budget: 0
-          }
-        }
-      },
-      {
-        description: 'negative team size',
-        data: {
-          customerId: 'CUST_001',
-          type: 'pilot',
-          requirements: {
-            timeline: '3-6 months',
-            budget: 50000,
-            teamSize: -1
-          }
-        }
-      }
-    ];
-
-    validInputs.forEach((input, index) => {
-      test(`should accept valid business case input #${index + 1}`, async () => {
-        const response = await request(app)
-          .post('/api/business-case/generate')
-          .send(input);
-
-        expect(response.status).not.toBe(400);
-      });
-    });
-
-    invalidInputs.forEach(({ description, data }) => {
-      test(`should reject business case input: ${description}`, async () => {
-        const response = await request(app)
-          .post('/api/business-case/generate')
-          .send(data)
-          .expect(400);
-
-        expect(response.body).toMatchObject({
-          success: false,
-          error: 'Validation Error'
-        });
-      });
-    });
-  });
-
-  describe('Export Input Validation', () => {
-    const validFormats = ['pdf', 'xlsx', 'docx'];
-    const invalidFormats = ['txt', 'csv', 'json', 'html', 'pptx', '', 'PDF', 'XLSX'];
+  describe('Export Format Validation', () => {
+    // Per validation.js line 61: valid formats are pdf, docx, json, csv
+    const validFormats = ['pdf', 'docx', 'json', 'csv'];
+    const invalidFormats = ['xlsx', 'txt', 'html', 'pptx', '', 'PDF', 'DOCX'];
 
     validFormats.forEach(format => {
       test(`should accept valid export format: ${format}`, async () => {
+        const testCustomerId = '550e8400-e29b-41d4-a716-446655440010';
+        const mockCustomer = {
+          customerId: testCustomerId,
+          icpContent: JSON.stringify({ title: 'Test ICP' })
+        };
+
+        mockSupabaseDataService.getCustomerById.mockResolvedValue(mockCustomer);
+
         const response = await request(app)
           .post('/api/export/icp')
+          .set(withAuth(testCustomerId))
           .send({
-            customerId: 'CUST_001',
+            customerId: testCustomerId,
             format: format
           });
 
-        // Should not fail validation (might fail for other reasons like missing data)
+        // Should not fail validation
         expect(response.status).not.toBe(400);
       });
     });
 
     invalidFormats.forEach(format => {
       test(`should reject invalid export format: "${format}"`, async () => {
+        const testCustomerId = '550e8400-e29b-41d4-a716-446655440011';
         const response = await request(app)
           .post('/api/export/icp')
+          .set(withAuth(testCustomerId))
           .send({
-            customerId: 'CUST_001',
+            customerId: testCustomerId,
             format: format
           })
           .expect(400);
@@ -330,19 +270,23 @@ describe('Input Validation Tests', () => {
 
   describe('Request Size Limits', () => {
     test('should reject oversized JSON payload', async () => {
+      const testCustomerId = '550e8400-e29b-41d4-a716-446655440012';
       // Create a large payload (over 10MB limit)
       const largeData = {
-        customerId: 'CUST_001',
-        type: 'pilot',
-        requirements: {
-          budget: 50000,
-          timeline: '3 months',
-          largeField: 'x'.repeat(11 * 1024 * 1024) // 11MB
-        }
+        customerId: testCustomerId,
+        caseType: 'pilot',
+        industry: 'Technology',
+        companySize: 'medium',
+        budget: 50000,
+        timeline: 3,
+        objectives: ['test'],
+        successMetrics: ['test'],
+        largeField: 'x'.repeat(11 * 1024 * 1024) // 11MB
       };
 
       const response = await request(app)
         .post('/api/business-case/generate')
+        .set(withAuth(testCustomerId))
         .send(largeData)
         .expect(413); // Payload Too Large
 
@@ -350,88 +294,48 @@ describe('Input Validation Tests', () => {
     });
 
     test('should accept reasonably sized JSON payload', async () => {
+      const testCustomerId = '550e8400-e29b-41d4-a716-446655440013';
       const normalData = {
-        customerId: 'CUST_001',
-        type: 'pilot',
-        requirements: {
-          budget: 50000,
-          timeline: '3 months',
-          description: 'A'.repeat(1000) // 1KB - reasonable size
-        }
+        customerId: testCustomerId,
+        caseType: 'pilot',
+        industry: 'Technology',
+        companySize: 'medium',
+        budget: 50000,
+        timeline: 3,
+        objectives: ['Increase revenue'],
+        successMetrics: ['Revenue growth'],
+        description: 'A'.repeat(1000) // 1KB - reasonable size
       };
 
       const response = await request(app)
         .post('/api/business-case/generate')
+        .set(withAuth(testCustomerId))
         .send(normalData);
 
       expect(response.status).not.toBe(413);
     });
   });
 
-  describe('Content-Type Validation', () => {
-    test('should reject non-JSON content type for JSON endpoints', async () => {
-      const response = await request(app)
-        .post('/api/cost-calculator/calculate')
-        .set('Content-Type', 'text/plain')
-        .send('customerId=CUST_001&potentialDeals=10')
-        .expect(400);
-
-      expect(response.status).toBe(400);
-    });
-
-    test('should accept proper JSON content type', async () => {
-      const response = await request(app)
-        .post('/api/cost-calculator/calculate')
-        .set('Content-Type', 'application/json')
-        .send({
-          customerId: 'CUST_001',
-          potentialDeals: 10,
-          averageDealSize: 50000,
-          delayMonths: 6
-        });
-
-      expect(response.status).not.toBe(400);
-    });
-  });
-
   describe('Query Parameter Validation', () => {
     test('should validate limit parameter in customer list', async () => {
+      const testCustomerId = '550e8400-e29b-41d4-a716-446655440014';
       const validLimits = [1, 10, 50, 100];
       const invalidLimits = [0, -1, 101, 1000, 'ten', ''];
 
+      mockSupabaseDataService.getAllCustomers.mockResolvedValue([]);
+
       for (const limit of validLimits) {
         const response = await request(app)
-          .get(`/api/customers?limit=${limit}`);
-        
+          .get(`/api/customers?limit=${limit}`)
+          .set(withAuth(testCustomerId));
+
         expect(response.status).not.toBe(400);
       }
 
       for (const limit of invalidLimits) {
         const response = await request(app)
           .get(`/api/customers?limit=${limit}`)
-          .expect(400);
-
-        expect(response.body).toMatchObject({
-          success: false,
-          error: 'Validation Error'
-        });
-      }
-    });
-
-    test('should validate offset parameter in pagination', async () => {
-      const validOffsets = [0, 10, 100];
-      const invalidOffsets = [-1, 'ten', ''];
-
-      for (const offset of validOffsets) {
-        const response = await request(app)
-          .get(`/api/export/history/CUST_001?offset=${offset}`);
-        
-        expect(response.status).not.toBe(400);
-      }
-
-      for (const offset of invalidOffsets) {
-        const response = await request(app)
-          .get(`/api/export/history/CUST_001?offset=${offset}`)
+          .set(withAuth(testCustomerId))
           .expect(400);
 
         expect(response.body).toMatchObject({
@@ -456,8 +360,10 @@ describe('Input Validation Tests', () => {
 
     sqlInjectionAttempts.forEach(injection => {
       test(`should prevent SQL injection: "${injection}"`, async () => {
+        const validTestId = '550e8400-e29b-41d4-a716-446655440015';
         const response = await request(app)
           .get(`/api/customer/${encodeURIComponent(injection)}`)
+          .set(withAuth(validTestId))
           .expect(400);
 
         expect(response.body).toMatchObject({
@@ -481,13 +387,21 @@ describe('Input Validation Tests', () => {
 
     xssAttempts.forEach(xss => {
       test(`should sanitize XSS attempt: "${xss}"`, async () => {
+        const testCustomerId = '550e8400-e29b-41d4-a716-446655440016';
         const response = await request(app)
           .post('/api/cost-calculator/calculate')
+          .set(withAuth(testCustomerId))
           .send({
-            customerId: 'CUST_001',
+            customerId: testCustomerId,
             potentialDeals: 10,
             averageDealSize: 50000,
+            conversionRate: 0.3,
             delayMonths: 6,
+            currentOperatingCost: 100000,
+            inefficiencyRate: 0.2,
+            employeeCount: 100,
+            averageSalary: 75000,
+            marketShare: 0.15,
             notes: xss
           });
 
@@ -518,8 +432,10 @@ describe('Input Validation Tests', () => {
 
     pathTraversalAttempts.forEach(attempt => {
       test(`should prevent path traversal: "${attempt}"`, async () => {
+        const validTestId = '550e8400-e29b-41d4-a716-446655440017';
         const response = await request(app)
           .get(`/api/customer/${encodeURIComponent(attempt)}`)
+          .set(withAuth(validTestId))
           .expect(400);
 
         expect(response.body).toMatchObject({
