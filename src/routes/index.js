@@ -9,7 +9,7 @@ import webhookRoutes from './webhooks.js';
 import progressRoutes from './progress.js';
 import paymentRoutes from './payment.js';
 import testRoutes from './testRoutes.js';
-import { validate, paramSchemas, costCalculationSchema, businessCaseSchema } from '../middleware/validation.js';
+import { validate, paramSchemas, costCalculationSchema, costCalculationSaveSchema, businessCaseSchema } from '../middleware/validation.js';
 import { strictRateLimiter } from '../middleware/security.js';
 import { authenticateMulti, requireCustomerContext, customerRateLimit } from '../middleware/auth.js';
 
@@ -115,7 +115,7 @@ router.post('/api/cost-calculator/calculate-ai',
 router.post('/api/cost-calculator/save',
   customerRateLimit(20, 15 * 60 * 1000), // 20 requests per 15 minutes
   authenticateMulti,
-  validate(costCalculationSchema),
+  validate(costCalculationSaveSchema),
   costCalculatorController.saveCostCalculation
 );
 

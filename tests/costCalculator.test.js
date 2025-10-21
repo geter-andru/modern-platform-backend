@@ -7,6 +7,7 @@ const mockSupabaseDataService = {
   getCustomerById: jest.fn(),
   updateCustomer: jest.fn(),
   createUserProgress: jest.fn(),
+  updateUserProgress: jest.fn(),
 };
 
 // Mock the service BEFORE importing app

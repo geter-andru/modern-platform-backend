@@ -177,8 +177,8 @@ const exportController = {
 
       // Update usage tracking
       await supabaseDataService.updateCustomer(customerId, {
-        'Usage Count': (customer.usageCount || 0) + 1,
-        'Last Accessed': new Date().toISOString()
+        usage_count: (customer.usageCount || 0) + 1,
+        last_accessed: new Date().toISOString()
       });
 
       res.status(200).json({

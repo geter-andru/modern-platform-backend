@@ -25,6 +25,12 @@ const costCalculationSchema = Joi.object({
   scenario: Joi.string().valid('conservative', 'realistic', 'aggressive').default('realistic')
 });
 
+// Cost calculation save validation schema (for saving already-calculated results)
+const costCalculationSaveSchema = Joi.object({
+  customerId: customerIdSchema,
+  calculations: Joi.object().required() // Accept any calculations object
+});
+
 // Authentication validation schemas
 const authSchemas = {
   refreshToken: Joi.object({
@@ -110,6 +116,7 @@ export {
   validate,
   customerIdSchema,
   costCalculationSchema,
+  costCalculationSaveSchema,
   businessCaseSchema,
   exportFormatSchema,
   paramSchemas,

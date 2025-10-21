@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import jwt from 'jsonwebtoken';
 import config from '../config/index.js';
 import logger from '../utils/logger.js';
 
@@ -20,14 +21,24 @@ export const authenticateSupabaseJWT = async (req, res, next) => {
       });
     }
 
-    // Extract customer ID from path for mock user
-    const pathParts = req.path.split('/');
-    const customerIndex = pathParts.indexOf('customer');
-    const customerId = (customerIndex !== -1 && pathParts[customerIndex + 1])
-      ? pathParts[customerIndex + 1]
-      : 'CUST_001';
+    // SECURITY FIX: Extract customer ID from the Bearer token, not from URL path
+    // This ensures test authorization matches production behavior
+    const token = authHeader.substring(7); // Remove 'Bearer ' prefix
 
-    // Create mock user for testing
+    let customerId = 'CUST_001'; // fallback
+
+    // Decode the JWT to get the actual customerId (test environment uses platform JWTs)
+    const decoded = jwt.decode(token);
+
+    // Use customerId from token if available
+    if (decoded && decoded.customerId) {
+      customerId = decoded.customerId;
+    } else if (decoded && decoded.sub) {
+      // Fallback to 'sub' claim if customerId not present
+      customerId = decoded.sub;
+    }
+
+    // Create mock user for testing with customer ID from TOKEN
     req.user = {
       id: customerId,
       email: `test-${customerId}@example.com`,

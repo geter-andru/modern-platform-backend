@@ -82,21 +82,38 @@ const costCalculatorController = {
         }
       };
 
+      // Calculate summary metrics
+      const monthlyCost = totalCost / 12;
+      const dailyCost = totalCost / 365;
+
+      // Add percentage breakdown
+      const categoriesWithPercentage = {};
+      for (const [key, calc] of Object.entries(calculations)) {
+        categoriesWithPercentage[key] = {
+          ...calc,
+          percentage: (calc.value / totalCost) * 100
+        };
+      }
+
       const result = {
         customerId,
         scenario,
-        input: req.body,
-        calculations,
-        totalCost,
+        inputs: req.body,
+        summary: {
+          totalCost,
+          monthlyCost,
+          dailyCost
+        },
+        categories: categoriesWithPercentage,
         roiScenarios,
         generatedAt: new Date().toISOString()
       };
 
       // Save calculation result to customer record
       await supabaseDataService.updateCustomer(customerId, {
-        'Cost Calculator Content': JSON.stringify(result),
-        'Content Status': 'Ready',
-        'Last Accessed': new Date().toISOString()
+        cost_calculator_content: JSON.stringify(result),
+        content_status: 'Ready',
+        last_accessed: new Date().toISOString()
       });
 
       // Create user progress record
@@ -178,7 +195,7 @@ const costCalculatorController = {
 
       // Save to customer record
       await supabaseDataService.updateCustomer(customerId, {
-        'Cost Calculator Content': JSON.stringify({
+        cost_calculator_content: JSON.stringify({
           latestCalculation: calculations,
           savedAt: new Date().toISOString()
         })
@@ -186,10 +203,9 @@ const costCalculatorController = {
 
       // Create progress record
       await supabaseDataService.updateUserProgress(customerId, 'cost_calculator', {
-        'Customer ID': customerId,
-        'Tool Name': 'Cost Calculator',
-        'Progress Data': JSON.stringify(calculations),
-        'Updated At': new Date().toISOString()
+        calculations: calculations,
+        saved: true,
+        timestamp: new Date().toISOString()
       });
 
       res.status(200).json({
@@ -377,9 +393,9 @@ const costCalculatorController = {
       };
 
       await supabaseDataService.updateCustomer(customerId, {
-        'Cost Calculator Content': JSON.stringify(costData),
-        'Content Status': 'Ready',
-        'Last Accessed': new Date().toISOString()
+        cost_calculator_content: JSON.stringify(costData),
+        content_status: 'Ready',
+        last_accessed: new Date().toISOString()
       });
 
       // Trigger automation if requested
