@@ -1,36 +1,59 @@
 import { describe, test, expect, beforeEach, jest } from '@jest/globals';
 import request from 'supertest';
-import app from '../src/server.js';
+import { withAuth } from './helpers/auth.js';
 
-// Mock the airtable service
-const mockAirtableService = {
+// Create the mock BEFORE any imports that might use it
+const mockSupabaseDataService = {
   getCustomerById: jest.fn(),
   updateCustomer: jest.fn(),
   createUserProgress: jest.fn(),
 };
 
-jest.unstable_mockModule('../src/services/airtableService.js', () => ({
-  default: mockAirtableService
+// Mock the service BEFORE importing app
+jest.unstable_mockModule('../src/services/supabaseDataService.js', () => ({
+  default: mockSupabaseDataService
 }));
 
+// NOW import app (after mock is set up)
+const { default: app } = await import('../src/server.js');
+
 describe('Cost Calculator Endpoints', () => {
+  const testCustomerId = '550e8400-e29b-41d4-a716-446655440001';
+  const nonExistentCustomerId = '550e8400-e29b-41d4-a716-446655449999';
+
   beforeEach(() => {
     jest.clearAllMocks();
+
+    // Setup default mock behaviors
+    mockSupabaseDataService.getCustomerById.mockImplementation((customerId) => {
+      if (customerId === testCustomerId) {
+        return Promise.resolve({
+          customerId: testCustomerId,
+          customerName: 'Test Customer'
+        });
+      }
+      return Promise.resolve(null);
+    });
   });
 
   describe('POST /api/cost-calculator/calculate', () => {
     test('should calculate cost of inaction with default values', async () => {
       const input = {
-        customerId: 'CUST_001',
+        customerId: testCustomerId,
         potentialDeals: 10,
         averageDealSize: 50000,
+        conversionRate: 0.3,
         delayMonths: 6,
+        currentOperatingCost: 100000,
+        inefficiencyRate: 0.2,
         employeeCount: 100,
-        averageSalary: 75000
+        averageSalary: 75000,
+        marketShare: 0.15
       };
 
       const response = await request(app)
         .post('/api/cost-calculator/calculate')
+        .set(withAuth(testCustomerId))
         .send(input)
         .expect(200);
 
@@ -59,8 +82,12 @@ describe('Cost Calculator Endpoints', () => {
               value: expect.any(Number)
             })
           },
-          scenario: 'Realistic',
-          inputs: expect.objectContaining(input)
+          scenario: 'realistic',
+          inputs: expect.objectContaining({
+            customerId: testCustomerId,
+            potentialDeals: 10,
+            averageDealSize: 50000
+          })
         }
       });
 
@@ -73,46 +100,61 @@ describe('Cost Calculator Endpoints', () => {
 
     test('should handle conservative scenario', async () => {
       const input = {
-        customerId: 'CUST_001',
+        customerId: testCustomerId,
         potentialDeals: 5,
         averageDealSize: 25000,
+        conversionRate: 0.25,
         delayMonths: 3,
-        scenario: 'Conservative'
+        currentOperatingCost: 50000,
+        inefficiencyRate: 0.15,
+        employeeCount: 50,
+        averageSalary: 60000,
+        marketShare: 0.1,
+        scenario: 'conservative'
       };
 
       const response = await request(app)
         .post('/api/cost-calculator/calculate')
+        .set(withAuth(testCustomerId))
         .send(input)
         .expect(200);
 
-      expect(response.body.data.scenario).toBe('Conservative');
+      expect(response.body.data.scenario).toBe('conservative');
       expect(response.body.data.summary.totalCost).toBeGreaterThan(0);
     });
 
     test('should handle aggressive scenario', async () => {
       const input = {
-        customerId: 'CUST_001',
+        customerId: testCustomerId,
         potentialDeals: 20,
         averageDealSize: 100000,
+        conversionRate: 0.4,
         delayMonths: 12,
-        scenario: 'Aggressive'
+        currentOperatingCost: 200000,
+        inefficiencyRate: 0.3,
+        employeeCount: 200,
+        averageSalary: 90000,
+        marketShare: 0.25,
+        scenario: 'aggressive'
       };
 
       const response = await request(app)
         .post('/api/cost-calculator/calculate')
+        .set(withAuth(testCustomerId))
         .send(input)
         .expect(200);
 
-      expect(response.body.data.scenario).toBe('Aggressive');
-      
+      expect(response.body.data.scenario).toBe('aggressive');
+
       // Aggressive scenario should have higher costs
       const aggressiveTotal = response.body.data.summary.totalCost;
-      
+
       // Calculate same with realistic for comparison
       const realisticResponse = await request(app)
         .post('/api/cost-calculator/calculate')
-        .send({ ...input, scenario: 'Realistic' });
-      
+        .set(withAuth(testCustomerId))
+        .send({ ...input, scenario: 'realistic' });
+
       const realisticTotal = realisticResponse.body.data.summary.totalCost;
       expect(aggressiveTotal).toBeGreaterThan(realisticTotal);
     });
@@ -120,6 +162,7 @@ describe('Cost Calculator Endpoints', () => {
     test('should validate required fields', async () => {
       const response = await request(app)
         .post('/api/cost-calculator/calculate')
+        .set(withAuth(testCustomerId))
         .send({})
         .expect(400);
 
@@ -132,8 +175,9 @@ describe('Cost Calculator Endpoints', () => {
     test('should validate numeric ranges', async () => {
       const response = await request(app)
         .post('/api/cost-calculator/calculate')
+        .set(withAuth(testCustomerId))
         .send({
-          customerId: 'CUST_001',
+          customerId: testCustomerId,
           potentialDeals: -5,
           averageDealSize: 0,
           delayMonths: 100
@@ -146,13 +190,18 @@ describe('Cost Calculator Endpoints', () => {
     test('should handle decimal values correctly', async () => {
       const response = await request(app)
         .post('/api/cost-calculator/calculate')
+        .set(withAuth(testCustomerId))
         .send({
-          customerId: 'CUST_001',
+          customerId: testCustomerId,
           potentialDeals: 7.5,
           averageDealSize: 45678.90,
-          delayMonths: 4.5,
           conversionRate: 0.125,
-          inefficiencyRate: 0.085
+          delayMonths: 4.5,
+          currentOperatingCost: 85000,
+          inefficiencyRate: 0.085,
+          employeeCount: 75,
+          averageSalary: 65000,
+          marketShare: 0.12
         })
         .expect(200);
 
@@ -164,16 +213,16 @@ describe('Cost Calculator Endpoints', () => {
   describe('POST /api/cost-calculator/save', () => {
     test('should save calculation results', async () => {
       const mockCustomer = {
-        customerId: 'CUST_001',
+        customerId: testCustomerId,
         customerName: 'Test Customer'
       };
 
       const calculationData = {
-        customerId: 'CUST_001',
+        customerId: testCustomerId,
         calculations: {
           totalCost: 500000,
           monthlyCost: 41666.67,
-          scenario: 'Realistic',
+          scenario: 'realistic',
           categories: {
             lostRevenue: { value: 250000 },
             operationalInefficiencies: { value: 150000 },
@@ -183,45 +232,47 @@ describe('Cost Calculator Endpoints', () => {
         }
       };
 
-      mockAirtableService.getCustomerById.mockResolvedValue(mockCustomer);
-      mockAirtableService.updateCustomer.mockResolvedValue({});
-      mockAirtableService.createUserProgress.mockResolvedValue({ id: 'rec123' });
+      mockSupabaseDataService.getCustomerById.mockResolvedValue(mockCustomer);
+      mockSupabaseDataService.updateCustomer.mockResolvedValue({});
+      mockSupabaseDataService.createUserProgress.mockResolvedValue({ id: 'rec123' });
 
       const response = await request(app)
         .post('/api/cost-calculator/save')
+        .set(withAuth(testCustomerId))
         .send(calculationData)
         .expect(200);
 
       expect(response.body).toMatchObject({
         success: true,
         data: {
-          customerId: 'CUST_001',
+          customerId: testCustomerId,
           saved: true
         }
       });
 
-      expect(mockAirtableService.updateCustomer).toHaveBeenCalledWith(
-        'CUST_001',
+      expect(mockSupabaseDataService.updateCustomer).toHaveBeenCalledWith(
+        testCustomerId,
         expect.objectContaining({
-          'Cost Calculator Content': expect.stringContaining('500000')
+          cost_calculator_content: expect.stringContaining('500000')
         })
       );
 
-      expect(mockAirtableService.createUserProgress).toHaveBeenCalledWith(
+      expect(mockSupabaseDataService.createUserProgress).toHaveBeenCalledWith(
         expect.objectContaining({
-          'Customer ID': 'CUST_001',
-          'Tool Name': 'Cost Calculator'
+          customer_id: testCustomerId,
+          tool_name: 'Cost Calculator'
         })
       );
     });
 
     test('should return 404 for non-existent customer', async () => {
-      mockAirtableService.getCustomerById.mockResolvedValue(null);
+      mockSupabaseDataService.getCustomerById.mockResolvedValue(null);
 
       const response = await request(app)
         .post('/api/cost-calculator/save')
+        .set(withAuth(nonExistentCustomerId))
         .send({
-          customerId: 'CUST_999',
+          customerId: nonExistentCustomerId,
           calculations: { totalCost: 100000 }
         })
         .expect(404);
@@ -235,8 +286,9 @@ describe('Cost Calculator Endpoints', () => {
     test('should validate calculation data structure', async () => {
       const response = await request(app)
         .post('/api/cost-calculator/save')
+        .set(withAuth(testCustomerId))
         .send({
-          customerId: 'CUST_001',
+          customerId: testCustomerId,
           calculations: 'invalid'
         })
         .expect(400);
@@ -248,37 +300,38 @@ describe('Cost Calculator Endpoints', () => {
   describe('GET /api/cost-calculator/history/:customerId', () => {
     test('should retrieve calculation history', async () => {
       const mockCustomer = {
-        customerId: 'CUST_001',
-        costCalculatorContent: JSON.stringify({
+        customerId: testCustomerId,
+        cost_calculator_content: JSON.stringify({
           history: [
             {
               date: '2024-01-15T10:00:00Z',
               totalCost: 450000,
-              scenario: 'Conservative'
+              scenario: 'conservative'
             },
             {
               date: '2024-01-20T14:30:00Z',
               totalCost: 500000,
-              scenario: 'Realistic'
+              scenario: 'realistic'
             }
           ]
         })
       };
 
-      mockAirtableService.getCustomerById.mockResolvedValue(mockCustomer);
+      mockSupabaseDataService.getCustomerById.mockResolvedValue(mockCustomer);
 
       const response = await request(app)
-        .get('/api/cost-calculator/history/CUST_001')
+        .get(`/api/cost-calculator/history/${testCustomerId}`)
+        .set(withAuth(testCustomerId))
         .expect(200);
 
       expect(response.body).toMatchObject({
         success: true,
         data: {
-          customerId: 'CUST_001',
+          customerId: testCustomerId,
           history: expect.arrayContaining([
             expect.objectContaining({
               totalCost: 450000,
-              scenario: 'Conservative'
+              scenario: 'conservative'
             })
           ])
         }
@@ -289,14 +342,15 @@ describe('Cost Calculator Endpoints', () => {
 
     test('should handle empty history', async () => {
       const mockCustomer = {
-        customerId: 'CUST_001',
-        costCalculatorContent: null
+        customerId: testCustomerId,
+        cost_calculator_content: null
       };
 
-      mockAirtableService.getCustomerById.mockResolvedValue(mockCustomer);
+      mockSupabaseDataService.getCustomerById.mockResolvedValue(mockCustomer);
 
       const response = await request(app)
-        .get('/api/cost-calculator/history/CUST_001')
+        .get(`/api/cost-calculator/history/${testCustomerId}`)
+        .set(withAuth(testCustomerId))
         .expect(200);
 
       expect(response.body.data.history).toEqual([]);
@@ -304,14 +358,15 @@ describe('Cost Calculator Endpoints', () => {
 
     test('should handle malformed history JSON', async () => {
       const mockCustomer = {
-        customerId: 'CUST_001',
-        costCalculatorContent: 'invalid json{'
+        customerId: testCustomerId,
+        cost_calculator_content: 'invalid json{'
       };
 
-      mockAirtableService.getCustomerById.mockResolvedValue(mockCustomer);
+      mockSupabaseDataService.getCustomerById.mockResolvedValue(mockCustomer);
 
       const response = await request(app)
-        .get('/api/cost-calculator/history/CUST_001')
+        .get(`/api/cost-calculator/history/${testCustomerId}`)
+        .set(withAuth(testCustomerId))
         .expect(200);
 
       expect(response.body.data.history).toEqual([]);
@@ -321,17 +376,24 @@ describe('Cost Calculator Endpoints', () => {
   describe('POST /api/cost-calculator/compare', () => {
     test('should compare multiple scenarios', async () => {
       const input = {
-        customerId: 'CUST_001',
+        customerId: testCustomerId,
         baseInputs: {
           potentialDeals: 10,
           averageDealSize: 50000,
-          delayMonths: 6
+          conversionRate: 0.3,
+          delayMonths: 6,
+          currentOperatingCost: 100000,
+          inefficiencyRate: 0.2,
+          employeeCount: 100,
+          averageSalary: 75000,
+          marketShare: 0.15
         },
-        scenarios: ['Conservative', 'Realistic', 'Aggressive']
+        scenarios: ['conservative', 'realistic', 'aggressive']
       };
 
       const response = await request(app)
         .post('/api/cost-calculator/compare')
+        .set(withAuth(testCustomerId))
         .send(input)
         .expect(200);
 
@@ -340,15 +402,15 @@ describe('Cost Calculator Endpoints', () => {
         data: {
           comparisons: expect.arrayContaining([
             expect.objectContaining({
-              scenario: 'Conservative',
+              scenario: 'conservative',
               totalCost: expect.any(Number)
             }),
             expect.objectContaining({
-              scenario: 'Realistic',
+              scenario: 'realistic',
               totalCost: expect.any(Number)
             }),
             expect.objectContaining({
-              scenario: 'Aggressive',
+              scenario: 'aggressive',
               totalCost: expect.any(Number)
             })
           ])
@@ -357,9 +419,9 @@ describe('Cost Calculator Endpoints', () => {
 
       // Verify ordering: Conservative < Realistic < Aggressive
       const comparisons = response.body.data.comparisons;
-      const conservative = comparisons.find(c => c.scenario === 'Conservative');
-      const realistic = comparisons.find(c => c.scenario === 'Realistic');
-      const aggressive = comparisons.find(c => c.scenario === 'Aggressive');
+      const conservative = comparisons.find(c => c.scenario === 'conservative');
+      const realistic = comparisons.find(c => c.scenario === 'realistic');
+      const aggressive = comparisons.find(c => c.scenario === 'aggressive');
 
       expect(conservative.totalCost).toBeLessThan(realistic.totalCost);
       expect(realistic.totalCost).toBeLessThan(aggressive.totalCost);
@@ -368,32 +430,46 @@ describe('Cost Calculator Endpoints', () => {
     test('should handle single scenario comparison', async () => {
       const response = await request(app)
         .post('/api/cost-calculator/compare')
+        .set(withAuth(testCustomerId))
         .send({
-          customerId: 'CUST_001',
+          customerId: testCustomerId,
           baseInputs: {
             potentialDeals: 5,
             averageDealSize: 25000,
-            delayMonths: 3
+            conversionRate: 0.25,
+            delayMonths: 3,
+            currentOperatingCost: 50000,
+            inefficiencyRate: 0.15,
+            employeeCount: 50,
+            averageSalary: 60000,
+            marketShare: 0.1
           },
-          scenarios: ['Realistic']
+          scenarios: ['realistic']
         })
         .expect(200);
 
       expect(response.body.data.comparisons).toHaveLength(1);
-      expect(response.body.data.comparisons[0].scenario).toBe('Realistic');
+      expect(response.body.data.comparisons[0].scenario).toBe('realistic');
     });
 
     test('should validate scenario names', async () => {
       const response = await request(app)
         .post('/api/cost-calculator/compare')
+        .set(withAuth(testCustomerId))
         .send({
-          customerId: 'CUST_001',
+          customerId: testCustomerId,
           baseInputs: {
             potentialDeals: 10,
             averageDealSize: 50000,
-            delayMonths: 6
+            conversionRate: 0.3,
+            delayMonths: 6,
+            currentOperatingCost: 100000,
+            inefficiencyRate: 0.2,
+            employeeCount: 100,
+            averageSalary: 75000,
+            marketShare: 0.15
           },
-          scenarios: ['Invalid', 'Realistic']
+          scenarios: ['invalid', 'realistic']
         })
         .expect(400);
 
