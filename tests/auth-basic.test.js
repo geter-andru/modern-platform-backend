@@ -1,8 +1,34 @@
-import { jest } from '@jest/globals';
+import { describe, test, expect, beforeEach, jest } from '@jest/globals';
 import request from 'supertest';
-import app from '../src/server.js';
+import { withAuth } from './helpers/auth.js';
+
+// Create the mock BEFORE any imports that might use it
+const mockSupabaseDataService = {
+  getCustomerById: jest.fn(),
+  updateCustomer: jest.fn(),
+};
+
+// Mock the service BEFORE importing app
+jest.unstable_mockModule('../src/services/supabaseDataService.js', () => ({
+  default: mockSupabaseDataService
+}));
+
+// NOW import app (after mock is set up)
+const { default: app } = await import('../src/server.js');
 
 describe('Basic Authentication Tests', () => {
+  const testCustomerId = '550e8400-e29b-41d4-a716-446655440001';
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+
+    // Setup default mock behavior
+    mockSupabaseDataService.getCustomerById.mockResolvedValue({
+      customerId: testCustomerId,
+      customerName: 'Test Customer'
+    });
+  });
+
   describe('Auth Status', () => {
     test('should return auth service status', async () => {
       const response = await request(app)
@@ -11,49 +37,41 @@ describe('Basic Authentication Tests', () => {
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
       expect(response.body.data.authService).toBe('operational');
+      expect(response.body.data.supportedMethods).toContain('Supabase JWT');
     });
   });
 
-  describe('JWT Token Generation', () => {
-    test('should generate JWT token for CUST_2', async () => {
+  describe('Token Verification', () => {
+    test('should verify valid JWT token', async () => {
       const response = await request(app)
-        .post('/api/auth/token')
-        .send({
-          customerId: 'CUST_2'
-        });
+        .get('/api/auth/verify')
+        .set(withAuth(testCustomerId));
 
-      console.log('Response status:', response.status);
-      console.log('Response body:', JSON.stringify(response.body, null, 2));
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
+      expect(response.body.data.valid).toBe(true);
+      expect(response.body.data.customerId).toBe(testCustomerId);
+    });
 
-      if (response.status !== 200) {
-        console.log('Failed to generate token');
-      } else {
-        expect(response.body.success).toBe(true);
-        expect(response.body.data).toHaveProperty('accessToken');
-        expect(response.body.data).toHaveProperty('refreshToken');
-      }
+    test('should reject missing authorization header', async () => {
+      const response = await request(app)
+        .get('/api/auth/verify');
+
+      expect(response.status).toBe(400);
+      expect(response.body.success).toBe(false);
+      expect(response.body.error).toBe('Authorization header required');
     });
   });
 
   describe('Validation Errors', () => {
-    test('should reject invalid customer ID format', async () => {
+    test('should reject invalid token format', async () => {
       const response = await request(app)
-        .post('/api/auth/token')
-        .send({
-          customerId: 'INVALID'
-        });
+        .get('/api/auth/verify')
+        .set('Authorization', 'Bearer invalid_token_format');
 
-      expect(response.status).toBe(400);
+      expect(response.status).toBe(401);
       expect(response.body.success).toBe(false);
-    });
-
-    test('should reject missing customer ID', async () => {
-      const response = await request(app)
-        .post('/api/auth/token')
-        .send({});
-
-      expect(response.status).toBe(400);
-      expect(response.body.success).toBe(false);
+      expect(response.body.error).toBe('Invalid token');
     });
   });
 });

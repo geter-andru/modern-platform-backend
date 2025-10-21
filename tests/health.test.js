@@ -1,20 +1,22 @@
-import { describe, test, expect, beforeAll, afterAll } from '@jest/globals';
+import { describe, test, expect, beforeEach, jest } from '@jest/globals';
 import request from 'supertest';
-import app from '../src/server.js';
+
+// Create the mock BEFORE any imports that might use it
+const mockSupabaseDataService = {
+  getCustomerById: jest.fn(),
+};
+
+// Mock the service BEFORE importing app
+jest.unstable_mockModule('../src/services/supabaseDataService.js', () => ({
+  default: mockSupabaseDataService
+}));
+
+// NOW import app (after mock is set up)
+const { default: app } = await import('../src/server.js');
 
 describe('Health Check Endpoints', () => {
-  let server;
-
-  beforeAll(async () => {
-    // Start server for testing
-    server = app.listen(0);
-  });
-
-  afterAll(async () => {
-    // Close server after tests
-    if (server) {
-      server.close();
-    }
+  beforeEach(() => {
+    jest.clearAllMocks();
   });
 
   describe('GET /health', () => {
@@ -63,7 +65,7 @@ describe('Health Check Endpoints', () => {
           status: expect.stringMatching(/healthy|degraded/),
           environment: 'test',
           dependencies: {
-            airtable: {
+            supabase: {
               status: expect.stringMatching(/healthy|unhealthy/),
               responseTime: expect.any(Number)
             }
@@ -73,7 +75,7 @@ describe('Health Check Endpoints', () => {
       });
     });
 
-    test('should handle airtable connection failures gracefully', async () => {
+    test('should handle supabase connection failures gracefully', async () => {
       // This test verifies that the health check handles external service failures
       const response = await request(app)
         .get('/health/detailed');
