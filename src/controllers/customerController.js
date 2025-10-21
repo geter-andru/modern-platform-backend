@@ -23,7 +23,7 @@ const customerController = {
 
       // Update last accessed timestamp
       await supabaseDataService.updateCustomer(customerId, {
-        'Last Accessed': new Date().toISOString()
+        last_accessed: new Date().toISOString()
       });
 
       res.status(200).json({
@@ -101,7 +101,7 @@ const customerController = {
       }
 
       // Add timestamp for last updated
-      updateData['Last Accessed'] = new Date().toISOString();
+      updateData['last_accessed'] = new Date().toISOString();
 
       const updatedRecord = await supabaseDataService.updateCustomer(customerId, updateData);
 
@@ -192,9 +192,9 @@ const customerController = {
       };
 
       await supabaseDataService.updateCustomer(customerId, {
-        'ICP Content': JSON.stringify(icpContent),
-        'Content Status': 'Ready',
-        'Last Accessed': new Date().toISOString()
+        icp_content: JSON.stringify(icpContent),
+        content_status: 'Ready',
+        last_accessed: new Date().toISOString()
       });
 
       // Trigger automation workflow if requested

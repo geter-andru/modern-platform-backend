@@ -145,9 +145,9 @@ const businessCaseController = {
 
       // Save business case to customer record
       await supabaseDataService.updateCustomer(customerId, {
-        'Business Case Content': JSON.stringify(businessCase),
-        'Content Status': 'Ready',
-        'Last Accessed': new Date().toISOString()
+        business_case_content: JSON.stringify(businessCase),
+        content_status: 'Ready',
+        last_accessed: new Date().toISOString()
       });
 
       // Create user progress record
@@ -257,7 +257,7 @@ const businessCaseController = {
       businessCases[businessCaseId] = businessCase;
 
       await supabaseDataService.updateCustomer(customerId, {
-        'Business Case Content': JSON.stringify(businessCases)
+        business_case_content: JSON.stringify(businessCases)
       });
 
       res.status(200).json({
@@ -307,7 +307,7 @@ const businessCaseController = {
       };
 
       await supabaseDataService.updateCustomer(customerId, {
-        'Business Case Content': JSON.stringify(businessCases)
+        business_case_content: JSON.stringify(businessCases)
       });
 
       res.status(200).json({

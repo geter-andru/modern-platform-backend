@@ -95,9 +95,9 @@ const webhookController = {
 
       // Update customer record with new ICP content
       const updateData = {
-        'ICP Content': JSON.stringify(icpData),
-        'Content Status': 'Ready',
-        'Last Accessed': new Date().toISOString()
+        icp_content: JSON.stringify(icpData),
+        content_status: 'Ready',
+        last_accessed: new Date().toISOString()
       };
 
       await supabaseDataService.updateCustomer(customer.customerId, updateData);
@@ -141,9 +141,9 @@ const webhookController = {
 
       // Update customer record
       const updateData = {
-        'Cost Calculator Content': JSON.stringify(costData),
-        'Content Status': 'Ready',
-        'Last Accessed': new Date().toISOString()
+        cost_calculator_content: JSON.stringify(costData),
+        content_status: 'Ready',
+        last_accessed: new Date().toISOString()
       };
 
       await supabaseDataService.updateCustomer(customer.customerId, updateData);
@@ -187,9 +187,9 @@ const webhookController = {
 
       // Update customer record
       const updateData = {
-        'Business Case Content': JSON.stringify(businessCaseData),
-        'Content Status': 'Ready',
-        'Last Accessed': new Date().toISOString()
+        business_case_content: JSON.stringify(businessCaseData),
+        content_status: 'Ready',
+        last_accessed: new Date().toISOString()
       };
 
       await supabaseDataService.updateCustomer(customer.customerId, updateData);
