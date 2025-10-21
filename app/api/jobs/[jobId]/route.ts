@@ -30,6 +30,18 @@ const rateLimiter = createRateLimiter({
   maxRequests: 60      // 60 job detail requests per minute per user
 });
 
+// Helper to check admin access
+function checkAdminAccess(request: NextRequest): boolean {
+  const adminToken = process.env.ADMIN_DEMO_TOKEN;
+  if (!adminToken) {
+    console.error('SECURITY: Admin demo token not configured');
+    return false;
+  }
+
+  return request.headers.get('x-admin-token') === adminToken ||
+         request.cookies.get('hs_customer_id')?.value === 'dru78DR9789SDF862';
+}
+
 interface JobParams {
   jobId: string;
 }
@@ -61,12 +73,11 @@ async function getJob(
     }
 
     // Check if user has access to this job
-    const requestUserId = request.headers.get('x-user-id') || 
-                         request.cookies.get('hs_customer_id')?.value || 
+    const requestUserId = request.headers.get('x-user-id') ||
+                         request.cookies.get('hs_customer_id')?.value ||
                          'anonymous';
-    
-    const isAdmin = request.headers.get('x-admin-token') === 'admin-demo-token-2025' ||
-                   request.cookies.get('hs_customer_id')?.value === 'dru78DR9789SDF862';
+
+    const isAdmin = checkAdminAccess(request);
 
     // Allow access if user owns the job or is admin
     if (!isAdmin && job.data.userId !== requestUserId) {
@@ -172,12 +183,11 @@ async function cancelJob(
     }
 
     // Check if user has access to this job
-    const requestUserId = request.headers.get('x-user-id') || 
-                         request.cookies.get('hs_customer_id')?.value || 
+    const requestUserId = request.headers.get('x-user-id') ||
+                         request.cookies.get('hs_customer_id')?.value ||
                          'anonymous';
-    
-    const isAdmin = request.headers.get('x-admin-token') === 'admin-demo-token-2025' ||
-                   request.cookies.get('hs_customer_id')?.value === 'dru78DR9789SDF862';
+
+    const isAdmin = checkAdminAccess(request);
 
     // Allow access if user owns the job or is admin
     if (!isAdmin && job.data.userId !== requestUserId) {
@@ -253,12 +263,11 @@ async function retryJob(
     }
 
     // Check if user has access to this job
-    const requestUserId = request.headers.get('x-user-id') || 
-                         request.cookies.get('hs_customer_id')?.value || 
+    const requestUserId = request.headers.get('x-user-id') ||
+                         request.cookies.get('hs_customer_id')?.value ||
                          'anonymous';
-    
-    const isAdmin = request.headers.get('x-admin-token') === 'admin-demo-token-2025' ||
-                   request.cookies.get('hs_customer_id')?.value === 'dru78DR9789SDF862';
+
+    const isAdmin = checkAdminAccess(request);
 
     // Allow access if user owns the job or is admin
     if (!isAdmin && job.data.userId !== requestUserId) {

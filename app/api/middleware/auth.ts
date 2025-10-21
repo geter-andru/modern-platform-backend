@@ -62,26 +62,28 @@ export async function withAuth(
     const customerId = pathParts[customerIdIndex];
     
     // Check for admin token
-    if (token === 'admin-demo-token-2025' && customerId === 'dru78DR9789SDF862') {
+    const adminDemoToken = process.env.ADMIN_DEMO_TOKEN;
+    if (adminDemoToken && token === adminDemoToken && customerId === 'dru78DR9789SDF862') {
       const authUser: AuthUser = {
         id: 'dru78DR9789SDF862',
         email: 'geter@humusnshore.org',
         customerId: 'dru78DR9789SDF862',
         isAdmin: true
       };
-      
+
       return handler(request, authUser);
     }
-    
+
     // Check for test token
-    if (token === 'test-token-123456' && customerId === 'CUST_02') {
+    const testToken = process.env.TEST_TOKEN;
+    if (testToken && token === testToken && customerId === 'CUST_02') {
       const authUser: AuthUser = {
         id: 'CUST_02',
         email: 'test@example.com',
         customerId: 'CUST_02',
         isAdmin: false
       };
-      
+
       return handler(request, authUser);
     }
     

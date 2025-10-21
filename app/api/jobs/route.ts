@@ -46,6 +46,18 @@ const rateLimiter = createRateLimiter({
   maxRequests: 30      // 30 job operations per minute per user
 });
 
+// Helper to check admin access
+function checkAdminAccess(request: NextRequest): boolean {
+  const adminToken = process.env.ADMIN_DEMO_TOKEN;
+  if (!adminToken) {
+    console.error('SECURITY: Admin demo token not configured');
+    return false;
+  }
+
+  return request.headers.get('x-admin-token') === adminToken ||
+         request.cookies.get('hs_customer_id')?.value === 'dru78DR9789SDF862';
+}
+
 interface CreateJobRequest {
   type: 'ai-processing' | 'file-generation' | 'email' | 'data-analysis';
   data: any;
@@ -282,8 +294,7 @@ export const DELETE = withErrorHandling(async (req: NextRequest) => {
   const action = searchParams.get('action'); // 'remove', 'clean', 'pause', 'resume'
 
   // Basic admin check (in production, implement proper admin auth)
-  const isAdmin = req.headers.get('x-admin-token') === 'admin-demo-token-2025' ||
-                  req.cookies.get('hs_customer_id')?.value === 'dru78DR9789SDF862';
+  const isAdmin = checkAdminAccess(req);
 
   if (!isAdmin) {
     throw createAPIError(ErrorType.AUTHORIZATION, 'Admin access required', 403);
