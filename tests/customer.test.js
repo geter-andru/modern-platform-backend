@@ -61,7 +61,7 @@ describe('Customer Endpoints', () => {
       expect(mockSupabaseDataService.updateCustomer).toHaveBeenCalledWith(
         testCustomerId,
         expect.objectContaining({
-          'Last Accessed': expect.any(String)
+          last_accessed: expect.any(String)
         })
       );
     });
@@ -87,11 +87,11 @@ describe('Customer Endpoints', () => {
       const response = await request(app)
         .get('/api/customer/invalid-id')
         .set(withAuth(validTestId))
-        .expect(400);
+        .expect(403); // Security middleware denies access before validation
 
       expect(response.body).toMatchObject({
         success: false,
-        error: 'Validation Error'
+        error: 'Access denied'
       });
     });
 
@@ -193,7 +193,7 @@ describe('Customer Endpoints', () => {
         testCustomerId,
         expect.objectContaining({
           ...updateData,
-          'Last Accessed': expect.any(String)
+          last_accessed: expect.any(String)
         })
       );
     });

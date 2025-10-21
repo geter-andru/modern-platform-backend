@@ -4,6 +4,7 @@ import request from 'supertest';
 // Create the mock BEFORE any imports that might use it
 const mockSupabaseDataService = {
   getCustomerById: jest.fn(),
+  getAllCustomers: jest.fn(), // Used by health check detailed endpoint
 };
 
 // Mock the service BEFORE importing app
@@ -55,6 +56,9 @@ describe('Health Check Endpoints', () => {
 
   describe('GET /health/detailed', () => {
     test('should return detailed health status', async () => {
+      // Mock successful Supabase connection
+      mockSupabaseDataService.getAllCustomers.mockResolvedValue([]);
+
       const response = await request(app)
         .get('/health/detailed')
         .expect(200);
