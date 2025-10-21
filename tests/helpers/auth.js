@@ -12,7 +12,7 @@ import authService from '../../src/services/authService.js';
  * @param {string} customerId - Customer ID to generate token for
  * @returns {string} Valid JWT access token
  */
-export function generateTestAccessToken(customerId = 'CUST_001') {
+export function generateTestAccessToken(customerId = '550e8400-e29b-41d4-a716-446655440001') {
   return authService.generateToken(customerId, 'access');
 }
 
@@ -21,7 +21,7 @@ export function generateTestAccessToken(customerId = 'CUST_001') {
  * @param {string} customerId - Customer ID to generate token for
  * @returns {string} Valid JWT refresh token
  */
-export function generateTestRefreshToken(customerId = 'CUST_001') {
+export function generateTestRefreshToken(customerId = '550e8400-e29b-41d4-a716-446655440001') {
   return authService.generateToken(customerId, 'refresh');
 }
 
@@ -30,7 +30,7 @@ export function generateTestRefreshToken(customerId = 'CUST_001') {
  * @param {string} customerId - Customer ID to generate tokens for
  * @returns {Object} Object containing accessToken and refreshToken
  */
-export function generateTestTokenPair(customerId = 'CUST_001') {
+export function generateTestTokenPair(customerId = '550e8400-e29b-41d4-a716-446655440001') {
   return {
     accessToken: generateTestAccessToken(customerId),
     refreshToken: generateTestRefreshToken(customerId)
@@ -42,7 +42,7 @@ export function generateTestTokenPair(customerId = 'CUST_001') {
  * @param {string} customerId - Customer ID to generate token for
  * @returns {Object} Object with Authorization header
  */
-export function getAuthHeader(customerId = 'CUST_001') {
+export function getAuthHeader(customerId = '550e8400-e29b-41d4-a716-446655440001') {
   const token = generateTestAccessToken(customerId);
   return {
     'Authorization': `Bearer ${token}`
@@ -55,7 +55,7 @@ export function getAuthHeader(customerId = 'CUST_001') {
  * @param {string} customerId - Customer ID to generate token for
  * @returns {Object} Headers object for supertest .set()
  */
-export function withAuth(customerId = 'CUST_001') {
+export function withAuth(customerId = '550e8400-e29b-41d4-a716-446655440001') {
   return getAuthHeader(customerId);
 }
 
@@ -64,7 +64,7 @@ export function withAuth(customerId = 'CUST_001') {
  * @param {string} customerId - Customer ID to generate token for
  * @returns {string} Expired JWT token
  */
-export function generateExpiredToken(customerId = 'CUST_001') {
+export function generateExpiredToken(customerId = '550e8400-e29b-41d4-a716-446655440001') {
   // Generate a token with -1 hour expiry (already expired)
   const jwt = require('jsonwebtoken');
   const config = require('../../src/config/index.js').default;
