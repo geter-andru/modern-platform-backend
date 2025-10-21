@@ -51,11 +51,12 @@ const jsonFormat = combine(
 );
 
 // Create base logger instance
-const logger = winston.createLogger({
-  level: config.logging.level || 'info',
-  defaultMeta: baseMetadata,
-  format: jsonFormat, // Default to JSON for files
-  transports: [
+// In production (Render/cloud), skip file transports - use stdout/stderr instead
+const transports = [];
+
+// Only add file transports in development/test (when filesystem is writable)
+if (config.server.nodeEnv !== 'production') {
+  transports.push(
     // File transport for all logs (JSON format)
     new winston.transports.File({
       filename: config.logging.file,
@@ -71,8 +72,15 @@ const logger = winston.createLogger({
       maxsize: 5242880, // 5MB
       maxFiles: 5,
       format: jsonFormat,
-    }),
-  ],
+    })
+  );
+}
+
+const logger = winston.createLogger({
+  level: config.logging.level || 'info',
+  defaultMeta: baseMetadata,
+  format: jsonFormat, // Default to JSON for files
+  transports,
 });
 
 // Add console transport with environment-specific formatting
@@ -90,19 +98,35 @@ if (config.server.nodeEnv !== 'test') {
 }
 
 // Handle uncaught exceptions and rejections
-logger.exceptions.handle(
-  new winston.transports.File({
-    filename: 'logs/exceptions.log',
-    format: jsonFormat,
-  })
-);
+// In production, log to console (Render captures stdout/stderr)
+// In development, log to file
+if (config.server.nodeEnv === 'production') {
+  logger.exceptions.handle(
+    new winston.transports.Console({
+      format: jsonFormat,
+    })
+  );
 
-logger.rejections.handle(
-  new winston.transports.File({
-    filename: 'logs/rejections.log',
-    format: jsonFormat,
-  })
-);
+  logger.rejections.handle(
+    new winston.transports.Console({
+      format: jsonFormat,
+    })
+  );
+} else {
+  logger.exceptions.handle(
+    new winston.transports.File({
+      filename: 'logs/exceptions.log',
+      format: jsonFormat,
+    })
+  );
+
+  logger.rejections.handle(
+    new winston.transports.File({
+      filename: 'logs/rejections.log',
+      format: jsonFormat,
+    })
+  );
+}
 
 /**
  * Create a child logger with additional context
