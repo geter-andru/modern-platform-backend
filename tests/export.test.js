@@ -1,16 +1,20 @@
 import { describe, test, expect, beforeEach, jest } from '@jest/globals';
 import request from 'supertest';
-import app from '../src/server.js';
+import { withAuth } from './helpers/auth.js';
 
-// Mock the airtable service
-const mockAirtableService = {
+// Create the mock BEFORE any imports that might use it
+const mockSupabaseDataService = {
   getCustomerById: jest.fn(),
   updateCustomer: jest.fn(),
 };
 
-jest.unstable_mockModule('../src/services/airtableService.js', () => ({
-  default: mockAirtableService
+// Mock the service BEFORE importing app
+jest.unstable_mockModule('../src/services/supabaseDataService.js', () => ({
+  default: mockSupabaseDataService
 }));
+
+// NOW import app (after mock is set up)
+const { default: app } = await import('../src/server.js');
 
 describe('Export Endpoints', () => {
   beforeEach(() => {
@@ -19,8 +23,9 @@ describe('Export Endpoints', () => {
 
   describe('POST /api/export/icp', () => {
     test('should export ICP data as PDF', async () => {
+      const testCustomerId = '550e8400-e29b-41d4-a716-446655440001';
       const mockCustomer = {
-        customerId: 'CUST_001',
+        customerId: testCustomerId,
         customerName: 'Test Customer',
         icpContent: JSON.stringify({
           title: 'Enterprise ICP Framework',
@@ -35,12 +40,13 @@ describe('Export Endpoints', () => {
         })
       };
 
-      mockAirtableService.getCustomerById.mockResolvedValue(mockCustomer);
+      mockSupabaseDataService.getCustomerById.mockResolvedValue(mockCustomer);
 
       const response = await request(app)
         .post('/api/export/icp')
+        .set(withAuth(testCustomerId))
         .send({
-          customerId: 'CUST_001',
+          customerId: testCustomerId,
           format: 'pdf',
           options: {
             includeScoring: true,
@@ -67,8 +73,8 @@ describe('Export Endpoints', () => {
       });
 
       // Verify tracking is updated
-      expect(mockAirtableService.updateCustomer).toHaveBeenCalledWith(
-        'CUST_001',
+      expect(mockSupabaseDataService.updateCustomer).toHaveBeenCalledWith(
+        testCustomerId,
         expect.objectContaining({
           'Usage Count': expect.any(Number),
           'Last Accessed': expect.any(String)
@@ -77,20 +83,22 @@ describe('Export Endpoints', () => {
     });
 
     test('should export ICP data as Excel', async () => {
+      const testCustomerId = '550e8400-e29b-41d4-a716-446655440002';
       const mockCustomer = {
-        customerId: 'CUST_001',
+        customerId: testCustomerId,
         icpContent: JSON.stringify({
           title: 'ICP Framework',
           segments: []
         })
       };
 
-      mockAirtableService.getCustomerById.mockResolvedValue(mockCustomer);
+      mockSupabaseDataService.getCustomerById.mockResolvedValue(mockCustomer);
 
       const response = await request(app)
         .post('/api/export/icp')
+        .set(withAuth(testCustomerId))
         .send({
-          customerId: 'CUST_001',
+          customerId: testCustomerId,
           format: 'xlsx'
         })
         .expect(200);
@@ -100,10 +108,12 @@ describe('Export Endpoints', () => {
     });
 
     test('should validate export format', async () => {
+      const testCustomerId = '550e8400-e29b-41d4-a716-446655440003';
       const response = await request(app)
         .post('/api/export/icp')
+        .set(withAuth(testCustomerId))
         .send({
-          customerId: 'CUST_001',
+          customerId: testCustomerId,
           format: 'invalid'
         })
         .expect(400);
@@ -115,17 +125,19 @@ describe('Export Endpoints', () => {
     });
 
     test('should handle missing ICP content', async () => {
+      const testCustomerId = '550e8400-e29b-41d4-a716-446655440004';
       const mockCustomer = {
-        customerId: 'CUST_001',
+        customerId: testCustomerId,
         icpContent: null
       };
 
-      mockAirtableService.getCustomerById.mockResolvedValue(mockCustomer);
+      mockSupabaseDataService.getCustomerById.mockResolvedValue(mockCustomer);
 
       const response = await request(app)
         .post('/api/export/icp')
+        .set(withAuth(testCustomerId))
         .send({
-          customerId: 'CUST_001',
+          customerId: testCustomerId,
           format: 'pdf'
         })
         .expect(400);
@@ -139,8 +151,9 @@ describe('Export Endpoints', () => {
 
   describe('POST /api/export/cost-calculator', () => {
     test('should export cost calculator results as PDF', async () => {
+      const testCustomerId = '550e8400-e29b-41d4-a716-446655440005';
       const mockCustomer = {
-        customerId: 'CUST_001',
+        customerId: testCustomerId,
         customerName: 'Test Customer',
         costCalculatorContent: JSON.stringify({
           latestCalculation: {
@@ -159,12 +172,13 @@ describe('Export Endpoints', () => {
         })
       };
 
-      mockAirtableService.getCustomerById.mockResolvedValue(mockCustomer);
+      mockSupabaseDataService.getCustomerById.mockResolvedValue(mockCustomer);
 
       const response = await request(app)
         .post('/api/export/cost-calculator')
+        .set(withAuth(testCustomerId))
         .send({
-          customerId: 'CUST_001',
+          customerId: testCustomerId,
           format: 'pdf',
           options: {
             includeCharts: true,
@@ -191,8 +205,9 @@ describe('Export Endpoints', () => {
     });
 
     test('should export cost calculator with historical data', async () => {
+      const testCustomerId = '550e8400-e29b-41d4-a716-446655440006';
       const mockCustomer = {
-        customerId: 'CUST_001',
+        customerId: testCustomerId,
         costCalculatorContent: JSON.stringify({
           latestCalculation: { totalCost: 500000 },
           history: [
@@ -202,12 +217,13 @@ describe('Export Endpoints', () => {
         })
       };
 
-      mockAirtableService.getCustomerById.mockResolvedValue(mockCustomer);
+      mockSupabaseDataService.getCustomerById.mockResolvedValue(mockCustomer);
 
       const response = await request(app)
         .post('/api/export/cost-calculator')
+        .set(withAuth(testCustomerId))
         .send({
-          customerId: 'CUST_001',
+          customerId: testCustomerId,
           format: 'xlsx',
           options: {
             includeHistory: true,
@@ -220,17 +236,19 @@ describe('Export Endpoints', () => {
     });
 
     test('should handle missing cost calculator data', async () => {
+      const testCustomerId = '550e8400-e29b-41d4-a716-446655440007';
       const mockCustomer = {
-        customerId: 'CUST_001',
+        customerId: testCustomerId,
         costCalculatorContent: null
       };
 
-      mockAirtableService.getCustomerById.mockResolvedValue(mockCustomer);
+      mockSupabaseDataService.getCustomerById.mockResolvedValue(mockCustomer);
 
       const response = await request(app)
         .post('/api/export/cost-calculator')
+        .set(withAuth(testCustomerId))
         .send({
-          customerId: 'CUST_001',
+          customerId: testCustomerId,
           format: 'pdf'
         })
         .expect(400);
@@ -241,8 +259,9 @@ describe('Export Endpoints', () => {
 
   describe('POST /api/export/comprehensive', () => {
     test('should export comprehensive report with all data', async () => {
+      const testCustomerId = '550e8400-e29b-41d4-a716-446655440008';
       const mockCustomer = {
-        customerId: 'CUST_001',
+        customerId: testCustomerId,
         customerName: 'Test Customer',
         company: 'Test Company',
         icpContent: JSON.stringify({
@@ -260,12 +279,13 @@ describe('Export Endpoints', () => {
         })
       };
 
-      mockAirtableService.getCustomerById.mockResolvedValue(mockCustomer);
+      mockSupabaseDataService.getCustomerById.mockResolvedValue(mockCustomer);
 
       const response = await request(app)
         .post('/api/export/comprehensive')
+        .set(withAuth(testCustomerId))
         .send({
-          customerId: 'CUST_001',
+          customerId: testCustomerId,
           format: 'pdf',
           sections: ['icp', 'cost-calculator', 'business-case'],
           options: {
@@ -293,20 +313,22 @@ describe('Export Endpoints', () => {
     });
 
     test('should handle partial data availability', async () => {
+      const testCustomerId = '550e8400-e29b-41d4-a716-446655440009';
       const mockCustomer = {
-        customerId: 'CUST_001',
+        customerId: testCustomerId,
         customerName: 'Test Customer',
         icpContent: JSON.stringify({ title: 'ICP' }),
         costCalculatorContent: null,
         businessCaseContent: null
       };
 
-      mockAirtableService.getCustomerById.mockResolvedValue(mockCustomer);
+      mockSupabaseDataService.getCustomerById.mockResolvedValue(mockCustomer);
 
       const response = await request(app)
         .post('/api/export/comprehensive')
+        .set(withAuth(testCustomerId))
         .send({
-          customerId: 'CUST_001',
+          customerId: testCustomerId,
           format: 'pdf',
           sections: ['icp', 'cost-calculator', 'business-case']
         })
@@ -317,10 +339,12 @@ describe('Export Endpoints', () => {
     });
 
     test('should validate section names', async () => {
+      const testCustomerId = '550e8400-e29b-41d4-a716-446655440010';
       const response = await request(app)
         .post('/api/export/comprehensive')
+        .set(withAuth(testCustomerId))
         .send({
-          customerId: 'CUST_001',
+          customerId: testCustomerId,
           format: 'pdf',
           sections: ['invalid-section', 'icp']
         })
@@ -332,8 +356,10 @@ describe('Export Endpoints', () => {
 
   describe('GET /api/export/status/:exportId', () => {
     test('should return export status for completed export', async () => {
+      const testCustomerId = '550e8400-e29b-41d4-a716-446655440011';
       const response = await request(app)
         .get('/api/export/status/exp_12345')
+        .set(withAuth(testCustomerId))
         .expect(200);
 
       expect(response.body).toMatchObject({
@@ -349,9 +375,11 @@ describe('Export Endpoints', () => {
     });
 
     test('should return processing status for in-progress export', async () => {
+      const testCustomerId = '550e8400-e29b-41d4-a716-446655440012';
       // This test simulates a processing export
       const response = await request(app)
         .get('/api/export/status/exp_processing')
+        .set(withAuth(testCustomerId))
         .expect(200);
 
       expect(['pending', 'processing', 'completed']).toContain(response.body.data.status);
@@ -360,8 +388,10 @@ describe('Export Endpoints', () => {
     });
 
     test('should return 404 for non-existent export', async () => {
+      const testCustomerId = '550e8400-e29b-41d4-a716-446655440013';
       const response = await request(app)
         .get('/api/export/status/exp_nonexistent')
+        .set(withAuth(testCustomerId))
         .expect(404);
 
       expect(response.body).toMatchObject({
@@ -373,8 +403,10 @@ describe('Export Endpoints', () => {
 
   describe('DELETE /api/export/:exportId', () => {
     test('should delete export file and metadata', async () => {
+      const testCustomerId = '550e8400-e29b-41d4-a716-446655440014';
       const response = await request(app)
         .delete('/api/export/exp_12345')
+        .set(withAuth(testCustomerId))
         .expect(200);
 
       expect(response.body).toMatchObject({
@@ -388,8 +420,10 @@ describe('Export Endpoints', () => {
     });
 
     test('should handle deletion of non-existent export', async () => {
+      const testCustomerId = '550e8400-e29b-41d4-a716-446655440015';
       const response = await request(app)
         .delete('/api/export/exp_nonexistent')
+        .set(withAuth(testCustomerId))
         .expect(404);
 
       expect(response.body).toMatchObject({
@@ -401,14 +435,16 @@ describe('Export Endpoints', () => {
 
   describe('GET /api/export/history/:customerId', () => {
     test('should return export history for customer', async () => {
+      const testCustomerId = '550e8400-e29b-41d4-a716-446655440016';
       const response = await request(app)
-        .get('/api/export/history/CUST_001')
+        .get(`/api/export/history/${testCustomerId}`)
+        .set(withAuth(testCustomerId))
         .expect(200);
 
       expect(response.body).toMatchObject({
         success: true,
         data: {
-          customerId: 'CUST_001',
+          customerId: testCustomerId,
           exports: expect.arrayContaining([
             expect.objectContaining({
               exportId: expect.any(String),
@@ -423,16 +459,20 @@ describe('Export Endpoints', () => {
     });
 
     test('should handle empty export history', async () => {
+      const testCustomerId = '550e8400-e29b-41d4-a716-446655440017';
       const response = await request(app)
-        .get('/api/export/history/CUST_NEW')
+        .get(`/api/export/history/${testCustomerId}`)
+        .set(withAuth(testCustomerId))
         .expect(200);
 
       expect(response.body.data.exports).toEqual([]);
     });
 
     test('should support pagination', async () => {
+      const testCustomerId = '550e8400-e29b-41d4-a716-446655440018';
       const response = await request(app)
-        .get('/api/export/history/CUST_001?limit=5&offset=0')
+        .get(`/api/export/history/${testCustomerId}?limit=5&offset=0`)
+        .set(withAuth(testCustomerId))
         .expect(200);
 
       expect(response.body.data).toMatchObject({
@@ -448,18 +488,20 @@ describe('Export Endpoints', () => {
 
   describe('Rate Limiting and Security', () => {
     test('should be rate limited for export endpoints', async () => {
+      const testCustomerId = '550e8400-e29b-41d4-a716-446655440019';
       const mockCustomer = {
-        customerId: 'CUST_001',
+        customerId: testCustomerId,
         icpContent: JSON.stringify({ title: 'Test' })
       };
 
-      mockAirtableService.getCustomerById.mockResolvedValue(mockCustomer);
+      mockSupabaseDataService.getCustomerById.mockResolvedValue(mockCustomer);
 
       // Make first request
       const response1 = await request(app)
         .post('/api/export/icp')
+        .set(withAuth(testCustomerId))
         .send({
-          customerId: 'CUST_001',
+          customerId: testCustomerId,
           format: 'pdf'
         })
         .expect(200);
@@ -469,8 +511,10 @@ describe('Export Endpoints', () => {
     });
 
     test('should validate customer ID format in export requests', async () => {
+      const testCustomerId = '550e8400-e29b-41d4-a716-446655440020';
       const response = await request(app)
         .post('/api/export/icp')
+        .set(withAuth(testCustomerId))
         .send({
           customerId: 'invalid-format',
           format: 'pdf'
@@ -481,18 +525,20 @@ describe('Export Endpoints', () => {
     });
 
     test('should sanitize file names in export responses', async () => {
+      const testCustomerId = '550e8400-e29b-41d4-a716-446655440021';
       const mockCustomer = {
-        customerId: 'CUST_001',
+        customerId: testCustomerId,
         customerName: 'Test <script>alert("xss")</script> Customer',
         icpContent: JSON.stringify({ title: 'Test' })
       };
 
-      mockAirtableService.getCustomerById.mockResolvedValue(mockCustomer);
+      mockSupabaseDataService.getCustomerById.mockResolvedValue(mockCustomer);
 
       const response = await request(app)
         .post('/api/export/icp')
+        .set(withAuth(testCustomerId))
         .send({
-          customerId: 'CUST_001',
+          customerId: testCustomerId,
           format: 'pdf'
         })
         .expect(200);
