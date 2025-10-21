@@ -1,17 +1,24 @@
 import { describe, test, expect, beforeEach, jest } from '@jest/globals';
 import request from 'supertest';
-import app from '../src/server.js';
+import { withAuth } from './helpers/auth.js';
 
-// Mock the airtable service
-const mockAirtableService = {
+// Create the mock BEFORE any imports that might use it
+const mockSupabaseDataService = {
   getCustomerById: jest.fn(),
+  getCustomerByEmail: jest.fn(),
   updateCustomer: jest.fn(),
   getAllCustomers: jest.fn(),
+  createCustomer: jest.fn(),
+  deleteCustomer: jest.fn(),
 };
 
-jest.unstable_mockModule('../src/services/airtableService.js', () => ({
-  default: mockAirtableService
+// Mock the service BEFORE importing app
+jest.unstable_mockModule('../src/services/supabaseDataService.js', () => ({
+  default: mockSupabaseDataService
 }));
+
+// NOW import app (after mock is set up)
+const { default: app } = await import('../src/server.js');
 
 describe('Customer Endpoints', () => {
   beforeEach(() => {
@@ -20,9 +27,10 @@ describe('Customer Endpoints', () => {
 
   describe('GET /api/customer/:customerId', () => {
     test('should return customer data for valid ID', async () => {
+      const testCustomerId = '550e8400-e29b-41d4-a716-446655440001';
       const mockCustomer = {
         id: 'rec123',
-        customerId: 'CUST_001',
+        customerId: testCustomerId,
         customerName: 'Test Customer',
         email: 'test@example.com',
         company: 'Test Company',
@@ -30,21 +38,28 @@ describe('Customer Endpoints', () => {
         contentStatus: 'Ready'
       };
 
-      mockAirtableService.getCustomerById.mockResolvedValue(mockCustomer);
-      mockAirtableService.updateCustomer.mockResolvedValue({});
+      mockSupabaseDataService.getCustomerById.mockResolvedValue(mockCustomer);
+      mockSupabaseDataService.updateCustomer.mockResolvedValue({});
 
       const response = await request(app)
-        .get('/api/customer/CUST_001')
-        .expect(200);
+        .get(`/api/customer/${testCustomerId}`)
+        .set(withAuth(testCustomerId));
 
+      // Debug: Log actual response
+      if (response.status !== 200) {
+        console.log('Response status:', response.status);
+        console.log('Response body:', JSON.stringify(response.body, null, 2));
+      }
+
+      expect(response.status).toBe(200);
       expect(response.body).toMatchObject({
         success: true,
         data: mockCustomer
       });
 
-      expect(mockAirtableService.getCustomerById).toHaveBeenCalledWith('CUST_001');
-      expect(mockAirtableService.updateCustomer).toHaveBeenCalledWith(
-        'CUST_001',
+      expect(mockSupabaseDataService.getCustomerById).toHaveBeenCalledWith(testCustomerId);
+      expect(mockSupabaseDataService.updateCustomer).toHaveBeenCalledWith(
+        testCustomerId,
         expect.objectContaining({
           'Last Accessed': expect.any(String)
         })
@@ -52,22 +67,26 @@ describe('Customer Endpoints', () => {
     });
 
     test('should return 404 for non-existent customer', async () => {
-      mockAirtableService.getCustomerById.mockResolvedValue(null);
+      const nonExistentId = '550e8400-e29b-41d4-a716-446655440999';
+      mockSupabaseDataService.getCustomerById.mockResolvedValue(null);
 
       const response = await request(app)
-        .get('/api/customer/CUST_999')
+        .get(`/api/customer/${nonExistentId}`)
+        .set(withAuth(nonExistentId))
         .expect(404);
 
       expect(response.body).toMatchObject({
         success: false,
         error: 'Customer not found',
-        customerId: 'CUST_999'
+        customerId: nonExistentId
       });
     });
 
     test('should validate customer ID format', async () => {
+      const validTestId = '550e8400-e29b-41d4-a716-446655440001';
       const response = await request(app)
         .get('/api/customer/invalid-id')
+        .set(withAuth(validTestId))
         .expect(400);
 
       expect(response.body).toMatchObject({
@@ -76,13 +95,15 @@ describe('Customer Endpoints', () => {
       });
     });
 
-    test('should handle airtable service errors', async () => {
-      mockAirtableService.getCustomerById.mockRejectedValue(
-        new Error('Airtable connection failed')
+    test('should handle supabase service errors', async () => {
+      const testCustomerId = '550e8400-e29b-41d4-a716-446655440001';
+      mockSupabaseDataService.getCustomerById.mockRejectedValue(
+        new Error('Supabase connection failed')
       );
 
       const response = await request(app)
-        .get('/api/customer/CUST_001')
+        .get(`/api/customer/${testCustomerId}`)
+        .set(withAuth(testCustomerId))
         .expect(500);
 
       expect(response.body).toMatchObject({
@@ -94,8 +115,9 @@ describe('Customer Endpoints', () => {
 
   describe('GET /api/customer/:customerId/icp', () => {
     test('should return ICP data for valid customer', async () => {
+      const testCustomerId = '550e8400-e29b-41d4-a716-446655440002';
       const mockCustomer = {
-        customerId: 'CUST_001',
+        customerId: testCustomerId,
         icpContent: JSON.stringify({
           title: 'Test ICP',
           segments: ['Enterprise', 'Mid-Market']
@@ -103,10 +125,11 @@ describe('Customer Endpoints', () => {
         contentStatus: 'Ready'
       };
 
-      mockAirtableService.getCustomerById.mockResolvedValue(mockCustomer);
+      mockSupabaseDataService.getCustomerById.mockResolvedValue(mockCustomer);
 
       const response = await request(app)
-        .get('/api/customer/CUST_001/icp')
+        .get(`/api/customer/${testCustomerId}/icp`)
+        .set(withAuth(testCustomerId))
         .expect(200);
 
       expect(response.body.data.icpData).toEqual({
@@ -116,16 +139,18 @@ describe('Customer Endpoints', () => {
     });
 
     test('should handle malformed ICP JSON', async () => {
+      const testCustomerId = '550e8400-e29b-41d4-a716-446655440003';
       const mockCustomer = {
-        customerId: 'CUST_001',
+        customerId: testCustomerId,
         icpContent: 'invalid json{',
         contentStatus: 'Ready'
       };
 
-      mockAirtableService.getCustomerById.mockResolvedValue(mockCustomer);
+      mockSupabaseDataService.getCustomerById.mockResolvedValue(mockCustomer);
 
       const response = await request(app)
-        .get('/api/customer/CUST_001/icp')
+        .get(`/api/customer/${testCustomerId}/icp`)
+        .set(withAuth(testCustomerId))
         .expect(200);
 
       expect(response.body.data.icpData).toEqual({
@@ -136,8 +161,9 @@ describe('Customer Endpoints', () => {
 
   describe('PUT /api/customer/:customerId', () => {
     test('should update customer data successfully', async () => {
+      const testCustomerId = '550e8400-e29b-41d4-a716-446655440004';
       const mockCustomer = {
-        customerId: 'CUST_001',
+        customerId: testCustomerId,
         customerName: 'Existing Customer'
       };
 
@@ -146,24 +172,25 @@ describe('Customer Endpoints', () => {
         'Usage Count': 5
       };
 
-      mockAirtableService.getCustomerById.mockResolvedValue(mockCustomer);
-      mockAirtableService.updateCustomer.mockResolvedValue({});
+      mockSupabaseDataService.getCustomerById.mockResolvedValue(mockCustomer);
+      mockSupabaseDataService.updateCustomer.mockResolvedValue({});
 
       const response = await request(app)
-        .put('/api/customer/CUST_001')
+        .put(`/api/customer/${testCustomerId}`)
+        .set(withAuth(testCustomerId))
         .send(updateData)
         .expect(200);
 
       expect(response.body).toMatchObject({
         success: true,
         data: {
-          customerId: 'CUST_001',
+          customerId: testCustomerId,
           updated: true
         }
       });
 
-      expect(mockAirtableService.updateCustomer).toHaveBeenCalledWith(
-        'CUST_001',
+      expect(mockSupabaseDataService.updateCustomer).toHaveBeenCalledWith(
+        testCustomerId,
         expect.objectContaining({
           ...updateData,
           'Last Accessed': expect.any(String)
@@ -172,10 +199,12 @@ describe('Customer Endpoints', () => {
     });
 
     test('should return 404 for non-existent customer update', async () => {
-      mockAirtableService.getCustomerById.mockResolvedValue(null);
+      const nonExistentId = '550e8400-e29b-41d4-a716-446655440998';
+      mockSupabaseDataService.getCustomerById.mockResolvedValue(null);
 
       const response = await request(app)
-        .put('/api/customer/CUST_999')
+        .put(`/api/customer/${nonExistentId}`)
+        .set(withAuth(nonExistentId))
         .send({ 'Content Status': 'Ready' })
         .expect(404);
 
@@ -188,15 +217,17 @@ describe('Customer Endpoints', () => {
 
   describe('GET /api/customers', () => {
     test('should return all customers with default limit', async () => {
+      const testCustomerId = '550e8400-e29b-41d4-a716-446655440005';
       const mockCustomers = [
-        { customerId: 'CUST_001', customerName: 'Customer 1' },
-        { customerId: 'CUST_002', customerName: 'Customer 2' }
+        { customerId: '550e8400-e29b-41d4-a716-446655440005', customerName: 'Customer 1' },
+        { customerId: '550e8400-e29b-41d4-a716-446655440006', customerName: 'Customer 2' }
       ];
 
-      mockAirtableService.getAllCustomers.mockResolvedValue(mockCustomers);
+      mockSupabaseDataService.getAllCustomers.mockResolvedValue(mockCustomers);
 
       const response = await request(app)
         .get('/api/customers')
+        .set(withAuth(testCustomerId))
         .expect(200);
 
       expect(response.body).toMatchObject({
@@ -208,29 +239,34 @@ describe('Customer Endpoints', () => {
         }
       });
 
-      expect(mockAirtableService.getAllCustomers).toHaveBeenCalledWith(100);
+      expect(mockSupabaseDataService.getAllCustomers).toHaveBeenCalledWith(100);
     });
 
     test('should respect custom limit parameter', async () => {
-      mockAirtableService.getAllCustomers.mockResolvedValue([]);
+      const testCustomerId = '550e8400-e29b-41d4-a716-446655440007';
+      mockSupabaseDataService.getAllCustomers.mockResolvedValue([]);
 
       await request(app)
         .get('/api/customers?limit=50')
+        .set(withAuth(testCustomerId))
         .expect(200);
 
-      expect(mockAirtableService.getAllCustomers).toHaveBeenCalledWith(50);
+      expect(mockSupabaseDataService.getAllCustomers).toHaveBeenCalledWith(50);
     });
 
     test('should be rate limited (strict)', async () => {
+      const testCustomerId = '550e8400-e29b-41d4-a716-446655440008';
       // This test verifies that the endpoint has strict rate limiting
       // In a real test environment, you might want to test this with actual rate limiting
-      mockAirtableService.getAllCustomers.mockResolvedValue([]);
+      mockSupabaseDataService.getAllCustomers.mockResolvedValue([]);
 
       const response = await request(app)
         .get('/api/customers')
+        .set(withAuth(testCustomerId))
         .expect(200);
 
-      expect(response.headers).toHaveProperty('x-ratelimit-limit');
+      // Rate limit headers use lowercase format
+      expect(response.headers).toHaveProperty('ratelimit-limit');
     });
   });
 });

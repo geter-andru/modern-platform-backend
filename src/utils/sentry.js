@@ -1,6 +1,7 @@
 import * as Sentry from '@sentry/node';
 import { nodeProfilingIntegration } from '@sentry/profiling-node';
 import config from '../config/index.js';
+import logger from './logger.js';
 
 /**
  * Initialize Sentry for backend error tracking and performance monitoring
@@ -8,14 +9,17 @@ import config from '../config/index.js';
 export function initializeSentry() {
   // Skip Sentry in test environment
   if (config.server.nodeEnv === 'test') {
-    console.log('Sentry disabled in test environment');
+    logger.info('sentry_disabled', { reason: 'test_environment' });
     return;
   }
 
   const sentryDsn = process.env.SENTRY_DSN;
 
   if (!sentryDsn) {
-    console.warn('⚠️  SENTRY_DSN not configured - error tracking disabled');
+    logger.warn('sentry_not_configured', {
+      reason: 'missing_dsn',
+      message: 'SENTRY_DSN not configured - error tracking disabled'
+    });
     return;
   }
 
@@ -47,7 +51,10 @@ export function initializeSentry() {
     // Don't send errors in development
     beforeSend(event, hint) {
       if (config.server.nodeEnv === 'development') {
-        console.log('🔍 Sentry would send:', event.exception || event.message);
+        logger.debug('sentry_dry_run', {
+          event_type: event.exception ? 'exception' : 'message',
+          event_data: event.exception || event.message
+        });
         return null; // Don't actually send in dev
       }
       return event;
@@ -68,7 +75,11 @@ export function initializeSentry() {
     },
   });
 
-  console.log(`✅ Sentry initialized (environment: ${config.server.nodeEnv})`);
+  logger.info('sentry_initialized', {
+    environment: config.server.nodeEnv,
+    traces_sample_rate: config.server.nodeEnv === 'production' ? 0.1 : 1.0,
+    profiles_sample_rate: config.server.nodeEnv === 'production' ? 0.1 : 1.0
+  });
 }
 
 export default Sentry;

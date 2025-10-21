@@ -494,6 +494,63 @@ class SupabaseDataService {
       throw new Error('Failed to log platform action: ' + error.message);
     }
   }
+
+  /**
+   * Get customer by email
+   * @param {string} email - Customer email
+   * @returns {Object|null} Customer data or null if not found
+   */
+  async getCustomerByEmail(email) {
+    try {
+      const { data, error } = await supabase
+        .from('customer_assets')
+        .select('*')
+        .eq('email', email)
+        .single();
+
+      if (error) {
+        if (error.code === 'PGRST116') { // Not found
+          logger.info(`Customer with email ${email} not found in database`);
+          return null;
+        }
+        throw error;
+      }
+
+      // Return raw Supabase data for payment operations (includes all stripe fields)
+      return data;
+    } catch (error) {
+      logger.error(`Error fetching customer by email ${email}:`, error);
+      throw new Error('Failed to fetch customer by email: ' + error.message);
+    }
+  }
+
+  /**
+   * Get customer by Stripe subscription ID
+   * @param {string} stripeSubscriptionId - Stripe subscription ID
+   * @returns {Object|null} Customer data or null if not found
+   */
+  async getCustomerByStripeSubscriptionId(stripeSubscriptionId) {
+    try {
+      const { data, error } = await supabase
+        .from('customer_assets')
+        .select('*')
+        .eq('stripe_subscription_id', stripeSubscriptionId)
+        .single();
+
+      if (error) {
+        if (error.code === 'PGRST116') { // Not found
+          logger.info(`Customer with subscription ${stripeSubscriptionId} not found`);
+          return null;
+        }
+        throw error;
+      }
+
+      return data;
+    } catch (error) {
+      logger.error(`Error fetching customer by subscription ${stripeSubscriptionId}:`, error);
+      throw new Error('Failed to fetch customer by subscription ID: ' + error.message);
+    }
+  }
 }
 
 // Create singleton instance

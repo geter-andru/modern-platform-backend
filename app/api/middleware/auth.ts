@@ -54,37 +54,47 @@ export async function withAuth(
       }
     }
     
-    // Fallback: Check for legacy token authentication
-    const url = new URL(request.url);
-    const token = url.searchParams.get('token');
-    const pathParts = url.pathname.split('/');
-    const customerIdIndex = pathParts.indexOf('api') + 2; // /api/progress/{customerId}
-    const customerId = pathParts[customerIdIndex];
-    
-    // Check for admin token
-    const adminDemoToken = process.env.ADMIN_DEMO_TOKEN;
-    if (adminDemoToken && token === adminDemoToken && customerId === 'dru78DR9789SDF862') {
-      const authUser: AuthUser = {
-        id: 'dru78DR9789SDF862',
-        email: 'geter@humusnshore.org',
-        customerId: 'dru78DR9789SDF862',
-        isAdmin: true
-      };
+    // Fallback: Check for legacy token authentication (if enabled)
+    const enableLegacyAuth = process.env.ENABLE_LEGACY_AUTH === 'true';
 
-      return handler(request, authUser);
-    }
+    if (enableLegacyAuth) {
+      const url = new URL(request.url);
+      const token = url.searchParams.get('token');
+      const pathParts = url.pathname.split('/');
+      const customerIdIndex = pathParts.indexOf('api') + 2; // /api/progress/{customerId}
+      const customerId = pathParts[customerIdIndex];
 
-    // Check for test token
-    const testToken = process.env.TEST_TOKEN;
-    if (testToken && token === testToken && customerId === 'CUST_02') {
-      const authUser: AuthUser = {
-        id: 'CUST_02',
-        email: 'test@example.com',
-        customerId: 'CUST_02',
-        isAdmin: false
-      };
+      // Check for admin token (requires both token and customer ID from env)
+      const adminDemoToken = process.env.ADMIN_DEMO_TOKEN;
+      const adminCustomerId = process.env.ADMIN_CUSTOMER_ID;
 
-      return handler(request, authUser);
+      if (adminDemoToken && adminCustomerId &&
+          token === adminDemoToken && customerId === adminCustomerId) {
+        const authUser: AuthUser = {
+          id: adminCustomerId,
+          email: process.env.ADMIN_EMAIL || 'admin@example.com',
+          customerId: adminCustomerId,
+          isAdmin: true
+        };
+
+        return handler(request, authUser);
+      }
+
+      // Check for test token (requires both token and customer ID from env)
+      const testToken = process.env.TEST_TOKEN;
+      const testCustomerId = process.env.TEST_CUSTOMER_ID;
+
+      if (testToken && testCustomerId &&
+          token === testToken && customerId === testCustomerId) {
+        const authUser: AuthUser = {
+          id: testCustomerId,
+          email: process.env.TEST_EMAIL || 'test@example.com',
+          customerId: testCustomerId,
+          isAdmin: false
+        };
+
+        return handler(request, authUser);
+      }
     }
     
     // No valid authentication found

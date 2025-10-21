@@ -1,4 +1,12 @@
 import dotenv from 'dotenv';
+import winston from 'winston';
+
+// Temporary logger for config initialization (before full logger is set up)
+const configLogger = winston.createLogger({
+  level: 'info',
+  format: winston.format.simple(),
+  transports: [new winston.transports.Console()],
+});
 
 // Load environment-specific .env file
 if (process.env.NODE_ENV === 'test') {
@@ -57,6 +65,8 @@ const config = {
       maxRequests: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 100,
       strictMax: parseInt(process.env.RATE_LIMIT_STRICT_MAX) || 20,
     },
+    // Legacy JWT feature flag - default false (Supabase-only auth)
+    enableLegacyJWT: process.env.ENABLE_LEGACY_JWT === 'true',
   },
 
   // Logging Configuration
@@ -89,7 +99,10 @@ for (const envVar of requiredEnvVars) {
 
 // Warn if Airtable variables are missing (legacy fallback)
 if (!process.env.AIRTABLE_API_KEY || !process.env.AIRTABLE_BASE_ID) {
-  console.warn('⚠️  Airtable configuration missing - legacy fallback disabled');
+  configLogger.warn('airtable_config_missing', {
+    legacy: true,
+    message: 'Airtable configuration missing - legacy fallback disabled'
+  });
 }
 
 export default config;

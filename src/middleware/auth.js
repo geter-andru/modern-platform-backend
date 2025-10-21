@@ -1,52 +1,7 @@
 import authService from '../services/authService.js';
 import { authenticateSupabaseJWT } from './supabaseAuth.js';
 import logger from '../utils/logger.js';
-
-/**
- * JWT Authentication Middleware
- * Validates JWT tokens from Authorization header
- */
-export const authenticateJWT = async (req, res, next) => {
-  try {
-    const authHeader = req.headers.authorization;
-    
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({
-        success: false,
-        error: 'Missing or invalid authorization header',
-        details: 'Expected format: Authorization: Bearer <token>'
-      });
-    }
-
-    const token = authHeader.substring(7); // Remove 'Bearer ' prefix
-    const verification = authService.verifyToken(token);
-
-    if (!verification.valid) {
-      const statusCode = verification.expired ? 401 : 403;
-      return res.status(statusCode).json({
-        success: false,
-        error: verification.expired ? 'Token expired' : 'Invalid token',
-        details: verification.error
-      });
-    }
-
-    // Add customer info to request
-    req.auth = {
-      customerId: verification.customerId,
-      tokenType: verification.tokenType,
-      decoded: verification.decoded
-    };
-
-    logger.info(`JWT authenticated for customer ${verification.customerId}`);
-    next();
-  } catch (error) {
-    logger.error(`JWT authentication error: ${error.message}`);
-    return res.status(500).json({
-      success: false,
-      error: 'Authentication service error'
-    });
-  }
-};
+import config from '../config/index.js';
 
 /**
  * API Key Authentication Middleware
@@ -191,19 +146,80 @@ export const requireCustomerContext = (req, res, next) => {
 };
 
 /**
- * Optional Authentication Middleware
- * Adds auth info if present but doesn't require it
+ * Optional Supabase Authentication Middleware
+ * Attempts to authenticate using Supabase JWT but continues even if authentication fails.
+ * This is the modern replacement for legacy optionalAuth.
+ *
+ * If a valid Supabase JWT is present, adds auth info to req.auth.
+ * If no auth or invalid auth, continues without setting req.auth.
+ */
+export const optionalSupabaseAuth = async (req, res, next) => {
+  try {
+    const authHeader = req.headers.authorization;
+
+    // Only attempt Supabase JWT authentication if Bearer token is present
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      // Create a mock response object to capture auth state
+      let authAttempted = false;
+      let authSucceeded = false;
+
+      // Wrap the next function to capture authentication success
+      const mockNext = () => {
+        authSucceeded = true;
+      };
+
+      // Try Supabase authentication (non-blocking)
+      try {
+        await authenticateSupabaseJWT(req, res, mockNext);
+
+        // If we get here and mockNext was called, auth succeeded
+        if (authSucceeded) {
+          logger.debug('Optional Supabase auth succeeded');
+        }
+      } catch (error) {
+        // Authentication failed, but that's okay for optional auth
+        logger.debug(`Optional Supabase auth failed: ${error.message}`);
+      }
+    }
+
+    // Always continue, regardless of authentication result
+    next();
+  } catch (error) {
+    // Log error but always continue
+    logger.warn(`Optional Supabase auth error: ${error.message}`);
+    next();
+  }
+};
+
+/**
+ * DEPRECATED: Legacy Optional Authentication Middleware
+ * @deprecated Use optionalSupabaseAuth instead
+ *
+ * ⚠️ SCHEDULED FOR REMOVAL - Only used in 2 test endpoints
+ * ⚠️ DO NOT USE in new code
+ * ⚠️ Migrate existing usage to optionalSupabaseAuth
+ *
+ * Uses legacy platform JWT system.
+ * Will be removed once test endpoints are migrated to Supabase auth.
  */
 export const optionalAuth = async (req, res, next) => {
+  logger.warn('DEPRECATED: optionalAuth called - use optionalSupabaseAuth instead. This function will be removed.');
+
+  // Check feature flag
+  if (!config.security.enableLegacyJWT) {
+    logger.debug('Legacy JWT disabled via feature flag - skipping optionalAuth');
+    return next();
+  }
+
   try {
     // Try to authenticate but don't fail if not present
     const authHeader = req.headers.authorization;
     const apiKey = req.headers['x-api-key'];
-    
+
     if (authHeader && authHeader.startsWith('Bearer ')) {
       const token = authHeader.substring(7);
       const verification = authService.verifyToken(token);
-      
+
       if (verification.valid) {
         req.auth = {
           customerId: verification.customerId,
@@ -213,7 +229,7 @@ export const optionalAuth = async (req, res, next) => {
       }
     } else if (apiKey) {
       const validation = authService.validateApiKey(apiKey);
-      
+
       if (validation.valid) {
         req.auth = {
           customerId: validation.customerId,
@@ -282,11 +298,12 @@ export const customerRateLimit = (maxRequests = 100, windowMs = 15 * 60 * 1000) 
 };
 
 export default {
-  authenticateJWT,
+  // authenticateJWT - REMOVED (dead code, never used in production)
   authenticateApiKey,
   authenticateMulti,
   requirePermission,
   requireCustomerContext,
-  optionalAuth,
+  optionalAuth,            // DEPRECATED - only used in 2 test endpoints, will be removed
+  optionalSupabaseAuth,    // NEW - modern Supabase-based optional auth
   customerRateLimit
 };

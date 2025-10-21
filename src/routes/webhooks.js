@@ -1,6 +1,6 @@
 import express from 'express';
 import webhookController from '../controllers/webhookController.js';
-import { authenticateMulti, optionalAuth, customerRateLimit } from '../middleware/auth.js';
+import { authenticateMulti, optionalSupabaseAuth, customerRateLimit } from '../middleware/auth.js';
 import { validate } from '../middleware/validation.js';
 import Joi from 'joi';
 
@@ -56,7 +56,7 @@ router.get('/test/:webhookType?',
 // Get automation status - Optional auth
 router.get('/status',
   customerRateLimit(100, 15 * 60 * 1000), // 100 requests per 15 minutes
-  optionalAuth,
+  optionalSupabaseAuth,
   webhookController.getAutomationStatus
 );
 

@@ -1,6 +1,6 @@
 import express from 'express';
 import authController from '../controllers/authController.js';
-import { authenticateMulti, optionalAuth, customerRateLimit } from '../middleware/auth.js';
+import { authenticateMulti, optionalSupabaseAuth, customerRateLimit } from '../middleware/auth.js';
 import { validate, authSchemas } from '../middleware/validation.js';
 
 const router = express.Router();
@@ -64,7 +64,7 @@ if (process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test') {
 
   // Test optional authentication
   router.get('/test/optional',
-    optionalAuth,
+    optionalSupabaseAuth,
     (req, res) => {
       res.json({
         success: true,

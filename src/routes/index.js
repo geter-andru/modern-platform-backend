@@ -7,6 +7,7 @@ import exportController from '../controllers/exportController.js';
 import authRoutes from './auth.js';
 import webhookRoutes from './webhooks.js';
 import progressRoutes from './progress.js';
+import paymentRoutes from './payment.js';
 import testRoutes from './testRoutes.js';
 import { validate, paramSchemas, costCalculationSchema, businessCaseSchema } from '../middleware/validation.js';
 import { strictRateLimiter } from '../middleware/security.js';
@@ -31,6 +32,9 @@ router.use('/api/webhooks', webhookRoutes);
 
 // Progress tracking routes (requires auth)
 router.use('/api/progress', progressRoutes);
+
+// Payment routes (Stripe integration)
+router.use('/api/payment', paymentRoutes);
 
 // Customer routes (requires authentication)
 router.get('/api/customer/:customerId', 

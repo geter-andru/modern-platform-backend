@@ -1,17 +1,24 @@
 import { describe, test, expect, beforeEach, jest } from '@jest/globals';
 import request from 'supertest';
-import app from '../src/server.js';
+import { withAuth } from './helpers/auth.js';
 
-// Mock the airtable service
-const mockAirtableService = {
+// Mock the supabase data service (backend migrated from Airtable to Supabase)
+const mockSupabaseDataService = {
   getCustomerById: jest.fn(),
+  getCustomerByEmail: jest.fn(),
   updateCustomer: jest.fn(),
-  createUserProgress: jest.fn(),
+  getAllCustomers: jest.fn(),
+  createCustomer: jest.fn(),
+  deleteCustomer: jest.fn(),
 };
 
-jest.unstable_mockModule('../src/services/airtableService.js', () => ({
-  default: mockAirtableService
+// Mock MUST be set up BEFORE importing app
+jest.unstable_mockModule('../src/services/supabaseDataService.js', () => ({
+  default: mockSupabaseDataService
 }));
+
+// NOW import app (after mock is configured)
+const { default: app } = await import('../src/server.js');
 
 describe('Business Case Endpoints', () => {
   beforeEach(() => {
@@ -21,7 +28,7 @@ describe('Business Case Endpoints', () => {
   describe('POST /api/business-case/generate', () => {
     test('should generate pilot program business case', async () => {
       const input = {
-        customerId: 'CUST_001',
+        customerId: '550e8400-e29b-41d4-a716-446655441001',
         type: 'pilot',
         requirements: {
           timeline: '3-6 months',
@@ -39,6 +46,7 @@ describe('Business Case Endpoints', () => {
       const response = await request(app)
         .post('/api/business-case/generate')
         .send(input)
+        .set(withAuth(input.customerId))
         .expect(200);
 
       expect(response.body).toMatchObject({
@@ -60,7 +68,7 @@ describe('Business Case Endpoints', () => {
           },
           metadata: {
             generatedAt: expect.any(String),
-            customerId: 'CUST_001',
+            customerId: '550e8400-e29b-41d4-a716-446655441001',
             version: expect.any(String)
           }
         }
@@ -75,7 +83,7 @@ describe('Business Case Endpoints', () => {
 
     test('should generate full implementation business case', async () => {
       const input = {
-        customerId: 'CUST_002',
+        customerId: '550e8400-e29b-41d4-a716-446655441002',
         type: 'full',
         requirements: {
           timeline: '6-18 months',
@@ -93,6 +101,7 @@ describe('Business Case Endpoints', () => {
       const response = await request(app)
         .post('/api/business-case/generate')
         .send(input)
+        .set(withAuth(input.customerId))
         .expect(200);
 
       expect(response.body.data.businessCase.type).toBe('full');
@@ -109,13 +118,14 @@ describe('Business Case Endpoints', () => {
       const response = await request(app)
         .post('/api/business-case/generate')
         .send({
-          customerId: 'CUST_001',
+          customerId: '550e8400-e29b-41d4-a716-446655441001',
           type: 'invalid',
           requirements: {
             timeline: '3 months',
             budget: 50000
           }
         })
+        .set(withAuth('550e8400-e29b-41d4-a716-446655441001'))
         .expect(400);
 
       expect(response.body).toMatchObject({
@@ -128,9 +138,10 @@ describe('Business Case Endpoints', () => {
       const response = await request(app)
         .post('/api/business-case/generate')
         .send({
-          customerId: 'CUST_001'
+          customerId: '550e8400-e29b-41d4-a716-446655441001'
           // Missing type and requirements
         })
+        .set(withAuth('550e8400-e29b-41d4-a716-446655441001'))
         .expect(400);
 
       expect(response.body.success).toBe(false);
@@ -140,13 +151,14 @@ describe('Business Case Endpoints', () => {
       const response = await request(app)
         .post('/api/business-case/generate')
         .send({
-          customerId: 'CUST_001',
+          customerId: '550e8400-e29b-41d4-a716-446655441001',
           type: 'pilot',
           requirements: {
             budget: -1000,
             timeline: '3 months'
           }
         })
+        .set(withAuth('550e8400-e29b-41d4-a716-446655441001'))
         .expect(400);
 
       expect(response.body.success).toBe(false);
@@ -156,7 +168,7 @@ describe('Business Case Endpoints', () => {
   describe('POST /api/business-case/customize', () => {
     test('should customize existing business case', async () => {
       const input = {
-        customerId: 'CUST_001',
+        customerId: '550e8400-e29b-41d4-a716-446655441001',
         businessCaseId: 'bc_123',
         customizations: {
           executiveSummary: 'Custom executive summary content',
@@ -170,7 +182,7 @@ describe('Business Case Endpoints', () => {
       };
 
       const mockCustomer = {
-        customerId: 'CUST_001',
+        customerId: '550e8400-e29b-41d4-a716-446655441001',
         businessCaseContent: JSON.stringify({
           bc_123: {
             type: 'pilot',
@@ -180,12 +192,13 @@ describe('Business Case Endpoints', () => {
         })
       };
 
-      mockAirtableService.getCustomerById.mockResolvedValue(mockCustomer);
-      mockAirtableService.updateCustomer.mockResolvedValue({});
+      mockSupabaseDataService.getCustomerById.mockResolvedValue(mockCustomer);
+      mockSupabaseDataService.updateCustomer.mockResolvedValue({});
 
       const response = await request(app)
         .post('/api/business-case/customize')
         .send(input)
+        .set(withAuth(input.customerId))
         .expect(200);
 
       expect(response.body).toMatchObject({
@@ -207,19 +220,20 @@ describe('Business Case Endpoints', () => {
 
     test('should return 404 for non-existent business case', async () => {
       const mockCustomer = {
-        customerId: 'CUST_001',
+        customerId: '550e8400-e29b-41d4-a716-446655441001',
         businessCaseContent: null
       };
 
-      mockAirtableService.getCustomerById.mockResolvedValue(mockCustomer);
+      mockSupabaseDataService.getCustomerById.mockResolvedValue(mockCustomer);
 
       const response = await request(app)
         .post('/api/business-case/customize')
         .send({
-          customerId: 'CUST_001',
+          customerId: '550e8400-e29b-41d4-a716-446655441001',
           businessCaseId: 'bc_nonexistent',
           customizations: {}
         })
+        .set(withAuth('550e8400-e29b-41d4-a716-446655441001'))
         .expect(404);
 
       expect(response.body).toMatchObject({
@@ -233,6 +247,7 @@ describe('Business Case Endpoints', () => {
     test('should return available templates', async () => {
       const response = await request(app)
         .get('/api/business-case/templates')
+        .set(withAuth('550e8400-e29b-41d4-a716-446655441001'))
         .expect(200);
 
       expect(response.body).toMatchObject({
@@ -263,6 +278,7 @@ describe('Business Case Endpoints', () => {
     test('should filter templates by type', async () => {
       const response = await request(app)
         .get('/api/business-case/templates?type=pilot')
+        .set(withAuth('550e8400-e29b-41d4-a716-446655441001'))
         .expect(200);
 
       const templates = response.body.data.templates;
@@ -272,6 +288,7 @@ describe('Business Case Endpoints', () => {
     test('should handle invalid template type filter', async () => {
       const response = await request(app)
         .get('/api/business-case/templates?type=invalid')
+        .set(withAuth('550e8400-e29b-41d4-a716-446655441001'))
         .expect(200);
 
       expect(response.body.data.templates).toEqual([]);
@@ -281,7 +298,7 @@ describe('Business Case Endpoints', () => {
   describe('GET /api/business-case/:customerId/history', () => {
     test('should retrieve business case history', async () => {
       const mockCustomer = {
-        customerId: 'CUST_001',
+        customerId: '550e8400-e29b-41d4-a716-446655441001',
         businessCaseContent: JSON.stringify({
           bc_001: {
             type: 'pilot',
@@ -296,16 +313,17 @@ describe('Business Case Endpoints', () => {
         })
       };
 
-      mockAirtableService.getCustomerById.mockResolvedValue(mockCustomer);
+      mockSupabaseDataService.getCustomerById.mockResolvedValue(mockCustomer);
 
       const response = await request(app)
-        .get('/api/business-case/CUST_001/history')
+        .get('/api/business-case/550e8400-e29b-41d4-a716-446655441001/history')
+        .set(withAuth('550e8400-e29b-41d4-a716-446655441001'))
         .expect(200);
 
       expect(response.body).toMatchObject({
         success: true,
         data: {
-          customerId: 'CUST_001',
+          customerId: '550e8400-e29b-41d4-a716-446655441001',
           businessCases: expect.arrayContaining([
             expect.objectContaining({
               id: 'bc_001',
@@ -324,14 +342,15 @@ describe('Business Case Endpoints', () => {
 
     test('should handle empty history', async () => {
       const mockCustomer = {
-        customerId: 'CUST_001',
+        customerId: '550e8400-e29b-41d4-a716-446655441001',
         businessCaseContent: null
       };
 
-      mockAirtableService.getCustomerById.mockResolvedValue(mockCustomer);
+      mockSupabaseDataService.getCustomerById.mockResolvedValue(mockCustomer);
 
       const response = await request(app)
-        .get('/api/business-case/CUST_001/history')
+        .get('/api/business-case/550e8400-e29b-41d4-a716-446655441001/history')
+        .set(withAuth('550e8400-e29b-41d4-a716-446655441001'))
         .expect(200);
 
       expect(response.body.data.businessCases).toEqual([]);
@@ -339,7 +358,7 @@ describe('Business Case Endpoints', () => {
 
     test('should sort history by creation date (newest first)', async () => {
       const mockCustomer = {
-        customerId: 'CUST_001',
+        customerId: '550e8400-e29b-41d4-a716-446655441001',
         businessCaseContent: JSON.stringify({
           bc_old: {
             createdAt: '2024-01-01T10:00:00Z',
@@ -352,10 +371,11 @@ describe('Business Case Endpoints', () => {
         })
       };
 
-      mockAirtableService.getCustomerById.mockResolvedValue(mockCustomer);
+      mockSupabaseDataService.getCustomerById.mockResolvedValue(mockCustomer);
 
       const response = await request(app)
-        .get('/api/business-case/CUST_001/history')
+        .get('/api/business-case/550e8400-e29b-41d4-a716-446655441001/history')
+        .set(withAuth('550e8400-e29b-41d4-a716-446655441001'))
         .expect(200);
 
       const businessCases = response.body.data.businessCases;
@@ -367,7 +387,7 @@ describe('Business Case Endpoints', () => {
   describe('POST /api/business-case/save', () => {
     test('should save generated business case', async () => {
       const businessCaseData = {
-        customerId: 'CUST_001',
+        customerId: '550e8400-e29b-41d4-a716-446655441001',
         businessCase: {
           type: 'pilot',
           executiveSummary: 'Test executive summary',
@@ -377,30 +397,31 @@ describe('Business Case Endpoints', () => {
       };
 
       const mockCustomer = {
-        customerId: 'CUST_001',
+        customerId: '550e8400-e29b-41d4-a716-446655441001',
         customerName: 'Test Customer'
       };
 
-      mockAirtableService.getCustomerById.mockResolvedValue(mockCustomer);
-      mockAirtableService.updateCustomer.mockResolvedValue({});
-      mockAirtableService.createUserProgress.mockResolvedValue({ id: 'rec123' });
+      mockSupabaseDataService.getCustomerById.mockResolvedValue(mockCustomer);
+      mockSupabaseDataService.updateCustomer.mockResolvedValue({});
+      mockSupabaseDataService.createUserProgress.mockResolvedValue({ id: 'rec123' });
 
       const response = await request(app)
         .post('/api/business-case/save')
         .send(businessCaseData)
+        .set(withAuth(businessCaseData.customerId))
         .expect(200);
 
       expect(response.body).toMatchObject({
         success: true,
         data: {
-          customerId: 'CUST_001',
+          customerId: '550e8400-e29b-41d4-a716-446655441001',
           businessCaseId: expect.any(String),
           saved: true
         }
       });
 
-      expect(mockAirtableService.updateCustomer).toHaveBeenCalledWith(
-        'CUST_001',
+      expect(mockSupabaseDataService.updateCustomer).toHaveBeenCalledWith(
+        '550e8400-e29b-41d4-a716-446655441001',
         expect.objectContaining({
           'Business Case Content': expect.stringContaining('75000')
         })
@@ -409,7 +430,7 @@ describe('Business Case Endpoints', () => {
 
     test('should handle duplicate business case saves', async () => {
       const mockCustomer = {
-        customerId: 'CUST_001',
+        customerId: '550e8400-e29b-41d4-a716-446655441001',
         businessCaseContent: JSON.stringify({
           existing: {
             type: 'pilot',
@@ -418,18 +439,19 @@ describe('Business Case Endpoints', () => {
         })
       };
 
-      mockAirtableService.getCustomerById.mockResolvedValue(mockCustomer);
-      mockAirtableService.updateCustomer.mockResolvedValue({});
+      mockSupabaseDataService.getCustomerById.mockResolvedValue(mockCustomer);
+      mockSupabaseDataService.updateCustomer.mockResolvedValue({});
 
       const response = await request(app)
         .post('/api/business-case/save')
         .send({
-          customerId: 'CUST_001',
+          customerId: '550e8400-e29b-41d4-a716-446655441001',
           businessCase: {
             type: 'pilot',
             executiveSummary: 'New summary'
           }
         })
+        .set(withAuth('550e8400-e29b-41d4-a716-446655441001'))
         .expect(200);
 
       expect(response.body.success).toBe(true);
@@ -443,7 +465,7 @@ describe('Business Case Endpoints', () => {
   describe('POST /api/business-case/export', () => {
     test('should export business case as PDF', async () => {
       const input = {
-        customerId: 'CUST_001',
+        customerId: '550e8400-e29b-41d4-a716-446655441001',
         businessCaseId: 'bc_123',
         format: 'pdf',
         options: {
@@ -453,7 +475,7 @@ describe('Business Case Endpoints', () => {
       };
 
       const mockCustomer = {
-        customerId: 'CUST_001',
+        customerId: '550e8400-e29b-41d4-a716-446655441001',
         businessCaseContent: JSON.stringify({
           bc_123: {
             type: 'pilot',
@@ -463,11 +485,12 @@ describe('Business Case Endpoints', () => {
         })
       };
 
-      mockAirtableService.getCustomerById.mockResolvedValue(mockCustomer);
+      mockSupabaseDataService.getCustomerById.mockResolvedValue(mockCustomer);
 
       const response = await request(app)
         .post('/api/business-case/export')
         .send(input)
+        .set(withAuth(input.customerId))
         .expect(200);
 
       expect(response.body).toMatchObject({
@@ -483,23 +506,24 @@ describe('Business Case Endpoints', () => {
 
     test('should export business case as Word document', async () => {
       const input = {
-        customerId: 'CUST_001',
+        customerId: '550e8400-e29b-41d4-a716-446655441001',
         businessCaseId: 'bc_123',
         format: 'docx'
       };
 
       const mockCustomer = {
-        customerId: 'CUST_001',
+        customerId: '550e8400-e29b-41d4-a716-446655441001',
         businessCaseContent: JSON.stringify({
           bc_123: { type: 'pilot' }
         })
       };
 
-      mockAirtableService.getCustomerById.mockResolvedValue(mockCustomer);
+      mockSupabaseDataService.getCustomerById.mockResolvedValue(mockCustomer);
 
       const response = await request(app)
         .post('/api/business-case/export')
         .send(input)
+        .set(withAuth(input.customerId))
         .expect(200);
 
       expect(response.body.data.format).toBe('docx');
@@ -509,10 +533,11 @@ describe('Business Case Endpoints', () => {
       const response = await request(app)
         .post('/api/business-case/export')
         .send({
-          customerId: 'CUST_001',
+          customerId: '550e8400-e29b-41d4-a716-446655441001',
           businessCaseId: 'bc_123',
           format: 'invalid'
         })
+        .set(withAuth('550e8400-e29b-41d4-a716-446655441001'))
         .expect(400);
 
       expect(response.body.success).toBe(false);

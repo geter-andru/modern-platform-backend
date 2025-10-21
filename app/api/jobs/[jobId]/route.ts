@@ -33,13 +33,15 @@ const rateLimiter = createRateLimiter({
 // Helper to check admin access
 function checkAdminAccess(request: NextRequest): boolean {
   const adminToken = process.env.ADMIN_DEMO_TOKEN;
-  if (!adminToken) {
-    console.error('SECURITY: Admin demo token not configured');
+  const adminCustomerId = process.env.ADMIN_CUSTOMER_ID;
+
+  if (!adminToken || !adminCustomerId) {
+    console.error('SECURITY: Admin credentials not configured');
     return false;
   }
 
   return request.headers.get('x-admin-token') === adminToken ||
-         request.cookies.get('hs_customer_id')?.value === 'dru78DR9789SDF862';
+         request.cookies.get('hs_customer_id')?.value === adminCustomerId;
 }
 
 interface JobParams {
