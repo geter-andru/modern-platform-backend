@@ -1,10 +1,25 @@
 import * as Sentry from '@sentry/node';
 
 /**
+ * Check if Sentry is initialized
+ */
+const isSentryInitialized = () => {
+  return Sentry.getCurrentHub && Sentry.getCurrentHub().getClient() !== undefined;
+};
+
+/**
+ * No-op middleware for when Sentry is not initialized
+ */
+const noOpMiddleware = (req, res, next) => next();
+
+/**
  * Sentry request handler middleware
  * Must be the first middleware to capture all requests
  */
 export const sentryRequestHandler = () => {
+  if (!isSentryInitialized()) {
+    return noOpMiddleware;
+  }
   return Sentry.Handlers.requestHandler({
     user: ['id', 'email', 'customerId'],
     ip: true,
@@ -17,6 +32,9 @@ export const sentryRequestHandler = () => {
  * Enables performance monitoring for requests
  */
 export const sentryTracingHandler = () => {
+  if (!isSentryInitialized()) {
+    return noOpMiddleware;
+  }
   return Sentry.Handlers.tracingHandler();
 };
 
@@ -25,6 +43,9 @@ export const sentryTracingHandler = () => {
  * Must be added AFTER all routes but BEFORE other error handlers
  */
 export const sentryErrorHandler = () => {
+  if (!isSentryInitialized()) {
+    return noOpMiddleware;
+  }
   return Sentry.Handlers.errorHandler({
     shouldHandleError(error) {
       // Capture all errors with status >= 500
@@ -44,6 +65,9 @@ export const sentryErrorHandler = () => {
  * Manually capture an exception with context
  */
 export function captureException(error, context = {}) {
+  if (!isSentryInitialized()) {
+    return;
+  }
   Sentry.captureException(error, {
     extra: context,
   });
@@ -53,6 +77,9 @@ export function captureException(error, context = {}) {
  * Set user context for Sentry
  */
 export function setUserContext(user) {
+  if (!isSentryInitialized()) {
+    return;
+  }
   Sentry.setUser({
     id: user.id || user.customerId,
     email: user.email,
@@ -65,6 +92,9 @@ export function setUserContext(user) {
  * Clear user context (on logout)
  */
 export function clearUserContext() {
+  if (!isSentryInitialized()) {
+    return;
+  }
   Sentry.setUser(null);
 }
 
@@ -72,6 +102,9 @@ export function clearUserContext() {
  * Add breadcrumb for debugging
  */
 export function addBreadcrumb(category, message, data = {}) {
+  if (!isSentryInitialized()) {
+    return;
+  }
   Sentry.addBreadcrumb({
     category,
     message,
