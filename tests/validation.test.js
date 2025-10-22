@@ -221,9 +221,9 @@ describe('Input Validation Tests', () => {
   });
 
   describe('Export Format Validation', () => {
-    // Per validation.js line 61: valid formats are pdf, docx, json, csv
-    const validFormats = ['pdf', 'docx', 'json', 'csv'];
-    const invalidFormats = ['xlsx', 'txt', 'html', 'pptx', '', 'PDF', 'DOCX'];
+    // Per validation.js: valid formats are pdf, docx, json, csv, xlsx (xlsx added in Sprint 3)
+    const validFormats = ['pdf', 'docx', 'json', 'csv', 'xlsx'];
+    const invalidFormats = ['txt', 'html', 'pptx', '', 'PDF', 'DOCX'];
 
     validFormats.forEach(format => {
       test(`should accept valid export format: ${format}`, async () => {

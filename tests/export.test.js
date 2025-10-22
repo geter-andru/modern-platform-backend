@@ -6,6 +6,7 @@ import { withAuth } from './helpers/auth.js';
 const mockSupabaseDataService = {
   getCustomerById: jest.fn(),
   updateCustomer: jest.fn(),
+  getUserProgress: jest.fn(),
 };
 
 // Mock the service BEFORE importing app
@@ -19,6 +20,9 @@ const { default: app } = await import('../src/server.js');
 describe('Export Endpoints', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+
+    // Default mock for getUserProgress - return empty array
+    mockSupabaseDataService.getUserProgress.mockResolvedValue([]);
   });
 
   describe('POST /api/export/icp', () => {
@@ -76,8 +80,8 @@ describe('Export Endpoints', () => {
       expect(mockSupabaseDataService.updateCustomer).toHaveBeenCalledWith(
         testCustomerId,
         expect.objectContaining({
-          'Usage Count': expect.any(Number),
-          'Last Accessed': expect.any(String)
+          usage_count: expect.any(Number),
+          last_accessed: expect.any(String)
         })
       );
     });
@@ -436,6 +440,18 @@ describe('Export Endpoints', () => {
   describe('GET /api/export/history/:customerId', () => {
     test('should return export history for customer', async () => {
       const testCustomerId = '550e8400-e29b-41d4-a716-446655440016';
+
+      // Mock export history data
+      mockSupabaseDataService.getUserProgress.mockResolvedValue([
+        {
+          exportId: 'exp_001',
+          type: 'icp',
+          format: 'pdf',
+          createdAt: new Date().toISOString(),
+          status: 'completed'
+        }
+      ]);
+
       const response = await request(app)
         .get(`/api/export/history/${testCustomerId}`)
         .set(withAuth(testCustomerId))

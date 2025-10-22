@@ -154,12 +154,12 @@ const costCalculatorController = {
       }
 
       let costData = null;
-      if (customer.costCalculatorContent) {
+      if (customer.cost_calculator_content) {
         try {
-          costData = JSON.parse(customer.costCalculatorContent);
+          costData = JSON.parse(customer.cost_calculator_content);
         } catch (parseError) {
           logger.warn(`Failed to parse cost calculator content for customer ${customerId}:`, parseError);
-          costData = { rawContent: customer.costCalculatorContent };
+          costData = { rawContent: customer.cost_calculator_content };
         }
       }
 
@@ -237,9 +237,9 @@ const costCalculatorController = {
       }
 
       let history = [];
-      if (customer.costCalculatorContent) {
+      if (customer.cost_calculator_content) {
         try {
-          const content = JSON.parse(customer.costCalculatorContent);
+          const content = JSON.parse(customer.cost_calculator_content);
           history = content.history || [];
         } catch (parseError) {
           logger.warn(`Malformed cost calculator JSON for customer ${customerId}:`, parseError);

@@ -258,10 +258,13 @@ describe('Cost Calculator Endpoints', () => {
         })
       );
 
-      expect(mockSupabaseDataService.createUserProgress).toHaveBeenCalledWith(
+      expect(mockSupabaseDataService.updateUserProgress).toHaveBeenCalledWith(
+        testCustomerId,
+        'cost_calculator',
         expect.objectContaining({
-          customer_id: testCustomerId,
-          tool_name: 'Cost Calculator'
+          calculations: expect.any(Object),
+          saved: true,
+          timestamp: expect.any(String)
         })
       );
     });

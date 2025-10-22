@@ -6,22 +6,36 @@ import supabaseDataService from '../services/supabaseDataService.js';
 
 const router = express.Router();
 
-// Initialize Stripe
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
-  apiVersion: '2024-10-28.acacia',
-});
+// Initialize Stripe only if API key is provided
+// This allows the server to start even if Stripe is not configured
+const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY;
+const stripe = STRIPE_SECRET_KEY
+  ? new Stripe(STRIPE_SECRET_KEY, { apiVersion: '2024-10-28.acacia' })
+  : null;
 
 const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET;
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
 const TRIAL_PERIOD_DAYS = 3;
 const PRICE_ID = process.env.STRIPE_MONTHLY_PRICE_ID; // $99/month price ID from Stripe
 
+// Middleware to check if Stripe is configured
+const requireStripe = (req, res, next) => {
+  if (!stripe) {
+    logger.warn('Stripe not configured - payment endpoint unavailable');
+    return res.status(503).json({
+      success: false,
+      error: 'Payment processing is not configured. Please contact support.'
+    });
+  }
+  next();
+};
+
 /**
  * POST /api/payment/create-subscription
  * Create a Stripe subscription with 3-day trial
  * Requires: Authenticated user
  */
-router.post('/create-subscription', authenticateSupabaseJWT, async (req, res) => {
+router.post('/create-subscription', requireStripe, authenticateSupabaseJWT, async (req, res) => {
   try {
     const userId = req.auth?.id;
     const userEmail = req.auth?.email;
@@ -104,7 +118,7 @@ router.post('/create-subscription', authenticateSupabaseJWT, async (req, res) =>
  * Handle Stripe webhook events
  * Processes: checkout.session.completed, customer.subscription.*, invoice.*
  */
-router.post('/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
+router.post('/webhook', requireStripe, express.raw({ type: 'application/json' }), async (req, res) => {
   const sig = req.headers['stripe-signature'];
 
   let event;
@@ -171,7 +185,7 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
  * GET /api/payment/subscription-status
  * Get current subscription status for authenticated user
  */
-router.get('/subscription-status', authenticateSupabaseJWT, async (req, res) => {
+router.get('/subscription-status', requireStripe, authenticateSupabaseJWT, async (req, res) => {
   try {
     const userId = req.auth?.id;
     const userEmail = req.auth?.email;
@@ -202,7 +216,7 @@ router.get('/subscription-status', authenticateSupabaseJWT, async (req, res) => 
  * POST /api/payment/cancel-subscription
  * Cancel subscription (at end of billing period)
  */
-router.post('/cancel-subscription', authenticateSupabaseJWT, async (req, res) => {
+router.post('/cancel-subscription', requireStripe, authenticateSupabaseJWT, async (req, res) => {
   try {
     const userId = req.auth?.id;
     const userEmail = req.auth?.email;

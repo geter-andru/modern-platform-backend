@@ -122,18 +122,28 @@ const exportController = {
   async getExportHistory(req, res) {
     try {
       const { customerId } = req.params;
-      
-      logger.info(`Fetching export history for customer ${customerId}`);
-      
+      const { limit = 10, offset = 0 } = req.query;
+
+      logger.info(`Fetching export history for customer ${customerId} (limit: ${limit}, offset: ${offset})`);
+
       // Get user progress data related to exports
-      const progressData = await supabaseDataService.getUserProgress(customerId);
-      
+      const allProgressData = await supabaseDataService.getUserProgress(customerId);
+
+      // Apply pagination
+      const total = allProgressData.length;
+      const paginatedData = allProgressData.slice(parseInt(offset), parseInt(offset) + parseInt(limit));
+
       res.status(200).json({
         success: true,
         data: {
           customerId,
-          exports: progressData,
-          availableFormats: ['json', 'csv', 'pdf', 'docx'],
+          exports: paginatedData,
+          pagination: {
+            limit: parseInt(limit),
+            offset: parseInt(offset),
+            total
+          },
+          availableFormats: ['json', 'csv', 'pdf', 'docx', 'xlsx'],
           availableData: ['icp', 'cost_calculator', 'business_case', 'progress']
         }
       });

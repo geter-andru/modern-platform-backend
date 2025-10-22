@@ -8,14 +8,17 @@ const businessCaseController = {
     try {
       const {
         customerId,
-        caseType,
-        industry,
-        companySize,
-        budget,
-        timeline,
-        objectives,
-        successMetrics
+        type: caseType,
+        requirements,
+        context
       } = req.body;
+
+      // Extract fields from nested structure
+      const { budget, timeline, successMetrics, teamSize } = requirements;
+      const { industry, companySize, currentChallenges } = context;
+
+      // Normalize caseType - support both 'full' and 'full_implementation'
+      const normalizedCaseType = caseType === 'full' ? 'full_implementation' : caseType;
 
       logger.info(`Generating ${caseType} business case for customer ${customerId}`);
 
@@ -67,7 +70,7 @@ const businessCaseController = {
         }
       };
 
-      const template = businessCaseTemplates[caseType];
+      const template = businessCaseTemplates[normalizedCaseType];
 
       // ROI calculation framework
       const roiCalculation = {
@@ -106,42 +109,97 @@ const businessCaseController = {
         ]
       };
 
-      // Generate business case structure
+      // Generate business case structure (matching test expectations)
+      const executiveSummaryText = `${customer.customerName} seeks to optimize revenue intelligence processes in the ${industry} market. ` +
+        `This ${normalizedCaseType === 'pilot' ? 'pilot program' : 'full implementation'} proposal outlines an investment of $${budget.toLocaleString()} over ${timeline} ` +
+        `to implement the H&S Revenue Intelligence Platform with an expected ROI of ${calculateExpectedROI(budget, normalizedCaseType)}.`;
+
+      const problemStatementText = `${customer.customerName} faces challenges in revenue intelligence processes including: ${
+        currentChallenges && currentChallenges.length > 0
+          ? currentChallenges.join(', ')
+          : 'manual processes, data silos, and inefficient workflows'
+      }. These challenges are impacting business growth and operational efficiency in the ${companySize} segment of the ${industry} industry.`;
+
+      const proposedSolutionText = `Implement H&S Revenue Intelligence Platform for ${normalizedCaseType === 'pilot' ? 'pilot evaluation' : 'full transformation'}. ` +
+        `This solution will address current challenges through automated workflows, integrated data systems, and AI-powered insights. ` +
+        `The implementation timeline is ${timeline} with a total investment of $${budget.toLocaleString()}.`;
+
       const businessCase = {
+        type: caseType,
         customerId,
-        caseType,
         industry,
         companySize,
-        budget,
-        timeline,
-        template,
-        executiveSummary: {
-          challenge: `${customer.customerName} seeks to optimize revenue intelligence processes for ${industry} market`,
-          solution: `Implement H&S Revenue Intelligence Platform for ${caseType === 'pilot' ? 'pilot evaluation' : 'full transformation'}`,
-          investment: `$${budget.toLocaleString()} over ${timeline} months`,
-          expectedROI: calculateExpectedROI(budget, caseType),
-          keyBenefits: objectives
-        },
-        financialProjections: {
-          investment: budget,
+        executiveSummary: executiveSummaryText,
+        problemStatement: problemStatementText,
+        proposedSolution: proposedSolutionText,
+        investment: {
+          totalCost: budget,
           timeline: timeline,
-          roiFramework: roiCalculation,
-          projectedBenefits: calculateProjectedBenefits(budget, caseType, industry),
-          paybackPeriod: calculatePaybackPeriod(budget, caseType)
+          breakdown: {
+            platformLicense: Math.floor(budget * 0.4),
+            implementation: Math.floor(budget * 0.3),
+            training: Math.floor(budget * 0.15),
+            support: Math.floor(budget * 0.15)
+          },
+          expectedROI: calculateExpectedROI(budget, normalizedCaseType),
+          paybackPeriod: calculatePaybackPeriod(budget, normalizedCaseType)
         },
-        implementationPlan: {
-          phases: generateImplementationPhases(caseType, timeline),
-          milestones: generateMilestones(caseType, timeline),
-          riskMitigation: generateRiskMitigation(caseType, companySize)
+        expectedOutcomes: [
+          `Revenue increase through improved sales intelligence`,
+          `Cost reduction via process automation`,
+          `Enhanced decision-making with AI-powered insights`,
+          `Improved team productivity and efficiency`,
+          `Scalable foundation for future growth`
+        ],
+        successMetrics: successMetrics,
+        riskAssessment: {
+          technicalRisks: generateRiskMitigation(normalizedCaseType, companySize),
+          mitigation: `Comprehensive risk mitigation strategy including phased rollout, dedicated support team, and continuous monitoring`,
+          overallRiskLevel: normalizedCaseType === 'pilot' ? 'Low' : 'Medium'
         },
-        successMetrics: {
-          framework: metricsFramework,
-          customMetrics: successMetrics,
-          measurementPlan: generateMeasurementPlan(caseType, timeline)
-        },
-        nextSteps: generateNextSteps(caseType),
+        nextSteps: generateNextSteps(normalizedCaseType),
         generatedAt: new Date().toISOString()
       };
+
+      // Add comprehensive content for full implementation business cases
+      if (normalizedCaseType === 'full_implementation') {
+        businessCase.strategicAlignment = {
+          businessObjectives: [
+            `Align revenue operations with ${industry} market dynamics`,
+            `Build competitive advantage through data-driven intelligence`,
+            `Enable scalable growth infrastructure`
+          ],
+          strategicImperative: `Transform revenue intelligence capabilities to support long-term growth objectives in the ${companySize} ${industry} market`,
+          executiveSponsorship: `Executive leadership commitment required for enterprise-wide transformation`
+        };
+
+        businessCase.currentStateAnalysis = {
+          challenges: currentChallenges || ['Legacy systems', 'Data fragmentation', 'Manual processes'],
+          gaps: [
+            `Lack of integrated revenue intelligence platform`,
+            `Limited AI/ML capabilities for predictive insights`,
+            `Inefficient cross-functional collaboration`
+          ],
+          opportunityCost: `Estimated annual opportunity cost: $${Math.floor(budget * 2).toLocaleString()} in lost revenue and operational inefficiencies`
+        };
+
+        businessCase.solutionArchitecture = {
+          components: [
+            `AI-powered revenue intelligence engine`,
+            `Integrated data platform and analytics`,
+            `Workflow automation and orchestration`,
+            `Real-time insights and dashboards`,
+            `Advanced reporting and forecasting`
+          ],
+          integrations: [
+            `CRM systems integration`,
+            `Marketing automation platforms`,
+            `Data warehouses and BI tools`,
+            `Communication and collaboration tools`
+          ],
+          scalability: `Enterprise-grade architecture supporting ${companySize} organizations with capacity for 10x growth`
+        };
+      }
 
       // Save business case to customer record
       await supabaseDataService.updateCustomer(customerId, {
@@ -152,7 +210,7 @@ const businessCaseController = {
 
       // Create user progress record
       await supabaseDataService.updateUserProgress(customerId, 'business_case', {
-        caseType,
+        type: caseType,
         industry,
         companySize,
         budget,
@@ -164,7 +222,14 @@ const businessCaseController = {
 
       res.status(200).json({
         success: true,
-        data: businessCase
+        data: {
+          businessCase,
+          metadata: {
+            generatedAt: businessCase.generatedAt,
+            customerId: businessCase.customerId,
+            version: '1.0'
+          }
+        }
       });
     } catch (error) {
       logger.error('Error generating business case:', error);

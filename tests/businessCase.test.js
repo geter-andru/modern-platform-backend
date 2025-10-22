@@ -10,6 +10,8 @@ const mockSupabaseDataService = {
   getAllCustomers: jest.fn(),
   createCustomer: jest.fn(),
   deleteCustomer: jest.fn(),
+  updateUserProgress: jest.fn(),
+  createUserProgress: jest.fn(),
 };
 
 // Mock MUST be set up BEFORE importing app
@@ -42,6 +44,14 @@ describe('Business Case Endpoints', () => {
           currentChallenges: ['Manual processes', 'Data silos']
         }
       };
+
+      // Mock customer retrieval
+      mockSupabaseDataService.getCustomerById.mockResolvedValue({
+        customerId: input.customerId,
+        customerName: 'Test Customer',
+        email: 'test@example.com'
+      });
+      mockSupabaseDataService.updateCustomer.mockResolvedValue({});
 
       const response = await request(app)
         .post('/api/business-case/generate')
@@ -97,6 +107,14 @@ describe('Business Case Endpoints', () => {
           currentChallenges: ['Compliance overhead', 'Scalability issues']
         }
       };
+
+      // Mock customer retrieval
+      mockSupabaseDataService.getCustomerById.mockResolvedValue({
+        customerId: input.customerId,
+        customerName: 'Enterprise Customer',
+        email: 'enterprise@example.com'
+      });
+      mockSupabaseDataService.updateCustomer.mockResolvedValue({});
 
       const response = await request(app)
         .post('/api/business-case/generate')
@@ -423,7 +441,7 @@ describe('Business Case Endpoints', () => {
       expect(mockSupabaseDataService.updateCustomer).toHaveBeenCalledWith(
         '550e8400-e29b-41d4-a716-446655441001',
         expect.objectContaining({
-          'Business Case Content': expect.stringContaining('75000')
+          'business_case_content': expect.stringContaining('75000')
         })
       );
     });

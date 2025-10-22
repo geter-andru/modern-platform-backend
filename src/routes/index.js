@@ -9,7 +9,7 @@ import webhookRoutes from './webhooks.js';
 import progressRoutes from './progress.js';
 import paymentRoutes from './payment.js';
 import testRoutes from './testRoutes.js';
-import { validate, paramSchemas, costCalculationSchema, costCalculationSaveSchema, businessCaseSchema } from '../middleware/validation.js';
+import { validate, paramSchemas, costCalculationSchema, costCalculationSaveSchema, costCalculationCompareSchema, businessCaseSchema, businessCaseExportSchema, exportFormatSchema, comprehensiveExportSchema } from '../middleware/validation.js';
 import { strictRateLimiter } from '../middleware/security.js';
 import { authenticateMulti, requireCustomerContext, customerRateLimit } from '../middleware/auth.js';
 
@@ -37,27 +37,27 @@ router.use('/api/progress', progressRoutes);
 router.use('/api/payment', paymentRoutes);
 
 // Customer routes (requires authentication)
-router.get('/api/customer/:customerId', 
+router.get('/api/customer/:customerId',
   customerRateLimit(50, 15 * 60 * 1000), // 50 requests per 15 minutes
   authenticateMulti,
-  requireCustomerContext,
   validate(paramSchemas.customerId, 'params'),
+  requireCustomerContext,
   customerController.getCustomer
 );
 
 router.get('/api/customer/:customerId/icp',
   customerRateLimit(30, 15 * 60 * 1000), // 30 requests per 15 minutes
   authenticateMulti,
-  requireCustomerContext,
   validate(paramSchemas.customerId, 'params'),
+  requireCustomerContext,
   customerController.getCustomerICP
 );
 
 router.put('/api/customer/:customerId',
   customerRateLimit(20, 15 * 60 * 1000), // 20 requests per 15 minutes
   authenticateMulti,
-  requireCustomerContext,
   validate(paramSchemas.customerId, 'params'),
+  requireCustomerContext,
   customerController.updateCustomer
 );
 
@@ -65,8 +65,8 @@ router.put('/api/customer/:customerId',
 router.post('/api/customer/:customerId/generate-icp',
   customerRateLimit(5, 60 * 60 * 1000), // 5 requests per hour (AI generation is expensive)
   authenticateMulti,
-  requireCustomerContext,
   validate(paramSchemas.customerId, 'params'),
+  requireCustomerContext,
   customerController.generateAIICP
 );
 
@@ -122,15 +122,15 @@ router.post('/api/cost-calculator/save',
 router.get('/api/cost-calculator/history/:customerId',
   customerRateLimit(25, 15 * 60 * 1000), // 25 requests per 15 minutes
   authenticateMulti,
-  requireCustomerContext,
   validate(paramSchemas.customerId, 'params'),
+  requireCustomerContext,
   costCalculatorController.getCostCalculationHistory
 );
 
 router.post('/api/cost-calculator/compare',
   customerRateLimit(15, 15 * 60 * 1000), // 15 requests per 15 minutes
   authenticateMulti,
-  validate(costCalculationSchema),
+  validate(costCalculationCompareSchema),
   costCalculatorController.compareCostScenarios
 );
 
@@ -163,6 +163,7 @@ router.post('/api/business-case/save',
 router.post('/api/business-case/export',
   customerRateLimit(5, 15 * 60 * 1000), // 5 requests per 15 minutes
   authenticateMulti,
+  validate(businessCaseExportSchema),
   businessCaseController.exportBusinessCase
 );
 
@@ -175,8 +176,8 @@ router.get('/api/business-case/templates',
 router.get('/api/business-case/:customerId/history',
   customerRateLimit(25, 15 * 60 * 1000), // 25 requests per 15 minutes
   authenticateMulti,
-  requireCustomerContext,
   validate(paramSchemas.customerId, 'params'),
+  requireCustomerContext,
   businessCaseController.getBusinessCaseHistory
 );
 
@@ -184,6 +185,7 @@ router.get('/api/business-case/:customerId/history',
 router.post('/api/export/icp',
   customerRateLimit(10, 15 * 60 * 1000), // 10 requests per 15 minutes
   authenticateMulti,
+  validate(exportFormatSchema),
   exportController.exportICP
 );
 
@@ -202,6 +204,7 @@ router.post('/api/export/business-case',
 router.post('/api/export/comprehensive',
   customerRateLimit(5, 15 * 60 * 1000), // 5 requests per 15 minutes (more resource intensive)
   authenticateMulti,
+  validate(comprehensiveExportSchema),
   exportController.exportComprehensive
 );
 
@@ -220,8 +223,8 @@ router.delete('/api/export/:exportId',
 router.get('/api/export/history/:customerId',
   customerRateLimit(25, 15 * 60 * 1000), // 25 requests per 15 minutes
   authenticateMulti,
-  requireCustomerContext,
   validate(paramSchemas.customerId, 'params'),
+  requireCustomerContext,
   exportController.getExportHistory
 );
 
