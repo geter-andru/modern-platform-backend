@@ -34,9 +34,6 @@ afterAll(() => {
 // Global test timeout
 jest.setTimeout(30000);
 
-// Mock Supabase auth middleware - uses __mocks__ directory
-jest.mock('../src/middleware/supabaseAuth.js');
-
 // Mock Supabase data service - uses __mocks__ directory
 // This MUST be called before any test imports the app/server
 jest.mock('../src/services/supabaseDataService.js');

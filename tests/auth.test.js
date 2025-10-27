@@ -78,7 +78,8 @@ describe('Authentication Tests', () => {
 
       expect(response.status).toBe(400);
       expect(response.body.success).toBe(false);
-      expect(response.body.error).toBe('Refresh token required');
+      expect(response.body.error).toBe('Validation Error');
+      expect(response.body.details).toContain('Refresh token is required');
     });
 
     test('should return 401 for invalid refresh token', async () => {

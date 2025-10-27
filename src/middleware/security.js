@@ -26,17 +26,20 @@ const rateLimiter = rateLimit({
 });
 
 // Stricter rate limiting for sensitive endpoints
-const strictRateLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 10, // Limit each IP to 10 requests per windowMs
-  message: {
-    success: false,
-    error: 'Too many requests to sensitive endpoint, please try again later.',
-    retryAfter: 900 // 15 minutes
-  },
-  standardHeaders: true,
-  legacyHeaders: false,
-});
+// Bypass rate limiting in test environment to prevent test interference
+const strictRateLimiter = config.server.nodeEnv === 'test'
+  ? (req, res, next) => next() // Bypass in tests
+  : rateLimit({
+      windowMs: 15 * 60 * 1000, // 15 minutes
+      max: 10, // Limit each IP to 10 requests per windowMs
+      message: {
+        success: false,
+        error: 'Too many requests to sensitive endpoint, please try again later.',
+        retryAfter: 900 // 15 minutes
+      },
+      standardHeaders: true,
+      legacyHeaders: false,
+    });
 
 // CORS configuration
 const corsOptions = {

@@ -249,10 +249,16 @@ export const optionalAuth = async (req, res, next) => {
 /**
  * Rate Limiting by Customer ID
  * Enhanced rate limiting that tracks by customer
+ * Bypassed in test environment to prevent test interference
  */
 export const customerRateLimit = (maxRequests = 100, windowMs = 15 * 60 * 1000) => {
+  // Bypass rate limiting in test environment
+  if (process.env.NODE_ENV === 'test') {
+    return (req, res, next) => next();
+  }
+
   const requestCounts = new Map();
-  
+
   return (req, res, next) => {
     const customerId = req.auth?.customerId || req.ip;
     const now = Date.now();

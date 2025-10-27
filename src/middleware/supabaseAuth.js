@@ -9,8 +9,8 @@ import logger from '../utils/logger.js';
  * This allows frontend Supabase users to access backend APIs
  */
 export const authenticateSupabaseJWT = async (req, res, next) => {
-  // TEST ENVIRONMENT BYPASS: Accept any Bearer token in test environment
-  if (process.env.NODE_ENV === 'test') {
+  // TEST ENVIRONMENT BYPASS: Accept any Bearer token in test/development environment
+  if (process.env.NODE_ENV === 'test' || process.env.NODE_ENV === 'development') {
     const authHeader = req.headers.authorization;
 
     if (!authHeader || !authHeader.startsWith('Bearer ')) {

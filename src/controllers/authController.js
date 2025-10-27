@@ -13,7 +13,7 @@ const authController = {
       if (!refreshToken) {
         return res.status(400).json({
           success: false,
-          error: 'Refresh token required'
+          error: 'Refresh token is required'
         });
       }
 

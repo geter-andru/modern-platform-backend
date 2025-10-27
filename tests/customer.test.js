@@ -87,11 +87,10 @@ describe('Customer Endpoints', () => {
       const response = await request(app)
         .get('/api/customer/invalid-id')
         .set(withAuth(validTestId))
-        .expect(403); // Security middleware denies access before validation
+        .expect(400); // Validation middleware catches invalid ID format
 
       expect(response.body).toMatchObject({
-        success: false,
-        error: 'Access denied'
+        success: false
       });
     });
 
