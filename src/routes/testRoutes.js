@@ -1,5 +1,6 @@
 import express from 'express';
 import * as Sentry from '@sentry/node';
+import supabaseDataService from '../services/supabaseDataService.js';
 import logger from '../utils/logger.js';
 
 const router = express.Router();
@@ -69,6 +70,35 @@ router.get('/sentry-status', (req, res) => {
       ? 'Sentry is configured. Visit /test/sentry-error to test error capture.'
       : 'Sentry DSN not configured. Set SENTRY_DSN environment variable.',
   });
+});
+
+/**
+ * Test route to diagnose customer data retrieval
+ * GET /test/customer-data/:userId
+ */
+router.get('/customer-data/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    logger.info(`[Test] Fetching customer data for ${userId}`);
+
+    const customer = await supabaseDataService.getCustomerById(userId);
+
+    res.json({
+      success: true,
+      customerExists: !!customer,
+      customerData: customer,
+      keys: customer ? Object.keys(customer) : [],
+      hasIcpContent: customer ? !!customer.icpContent : false,
+      icpContentType: customer?.icpContent ? typeof customer.icpContent : 'n/a'
+    });
+  } catch (error) {
+    logger.error('[Test] Error fetching customer data:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
 });
 
 export default router;

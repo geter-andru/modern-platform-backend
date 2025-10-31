@@ -9,6 +9,9 @@ import webhookRoutes from './webhooks.js';
 import progressRoutes from './progress.js';
 import paymentRoutes from './payment.js';
 import testRoutes from './testRoutes.js';
+import aiPersonaRoutes from './aiPersonaRoutes.js';
+import aiRatingRoutes from './aiRatingRoutes.js';
+import jobRoutes from './jobRoutes.js';
 import { validate, paramSchemas, costCalculationSchema, costCalculationSaveSchema, costCalculationCompareSchema, businessCaseSchema, businessCaseExportSchema, exportFormatSchema, comprehensiveExportSchema } from '../middleware/validation.js';
 import { strictRateLimiter } from '../middleware/security.js';
 import { authenticateMulti, requireCustomerContext, customerRateLimit } from '../middleware/auth.js';
@@ -35,6 +38,17 @@ router.use('/api/progress', progressRoutes);
 
 // Payment routes (Stripe integration)
 router.use('/api/payment', paymentRoutes);
+
+// AI Persona routes (AI-powered buyer persona generation)
+router.use('/api/ai', aiPersonaRoutes);
+router.use('/api/personas', aiPersonaRoutes);
+
+// AI Rating routes (AI-powered company ICP fit rating)
+router.use('/api/ai', aiRatingRoutes);
+router.use('/api/ratings', aiRatingRoutes);
+
+// Job Queue routes (async job submission and status)
+router.use('/api/jobs', jobRoutes);
 
 // Customer routes (requires authentication)
 router.get('/api/customer/:customerId',
@@ -312,6 +326,10 @@ router.get('/api/docs', (req, res) => {
           'POST /api/auth/api-key': 'Generate API key',
           'GET /api/auth/permissions': 'Get customer permissions',
           'GET /api/auth/status': 'Authentication service status'
+        },
+        aiPersonas: {
+          'POST /api/ai/generate-personas': 'Generate 3-5 buyer personas using Claude AI',
+          'GET /api/personas/current-user': 'Get all saved personas for authenticated user'
         },
         progress: {
           'GET /api/progress/:customerId': 'Get customer progress dashboard',

@@ -197,6 +197,28 @@ const customerController = {
         last_accessed: new Date().toISOString()
       });
 
+      // Save product details to product_details table if provided
+      let productSaved = false;
+      if (productInfo && (productInfo.name || productInfo.description)) {
+        try {
+          await supabaseDataService.upsertProductDetails(customerId, {
+            productName: productInfo.name || 'Unnamed Product',
+            productDescription: productInfo.description || '',
+            distinguishingFeature: productInfo.distinguishingFeature || '',
+            businessModel: productInfo.businessModel || '',
+            industry: industry || 'Technology',
+            targetMarket: aiResult.data?.segments?.[0]?.criteria || null,
+            valueProposition: aiResult.data?.keyIndicators?.[0] || null,
+            isPrimary: true
+          });
+          productSaved = true;
+          logger.info(`Product details saved for customer ${customerId}: ${productInfo.name}`);
+        } catch (productError) {
+          logger.error(`Failed to save product details for customer ${customerId}:`, productError);
+          // Don't fail the entire ICP generation if product save fails
+        }
+      }
+
       // Trigger automation workflow if requested
       if (triggerAutomation) {
         const automationResult = await makeService.triggerICPAnalysis(customer);
@@ -210,6 +232,7 @@ const customerController = {
           icpAnalysis: aiResult.data,
           metadata: aiResult.metadata,
           saved: true,
+          productSaved,
           automationTriggered: !!triggerAutomation
         }
       });
