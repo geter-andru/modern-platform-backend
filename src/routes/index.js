@@ -1,9 +1,11 @@
 import express from 'express';
+import rateLimit from 'express-rate-limit';
 import healthController from '../controllers/healthController.js';
 import customerController from '../controllers/customerController.js';
 import costCalculatorController from '../controllers/costCalculatorController.js';
 import businessCaseController from '../controllers/businessCaseController.js';
 import exportController from '../controllers/exportController.js';
+import betaSignupController from '../controllers/betaSignupController.js';
 import authRoutes from './auth.js';
 import webhookRoutes from './webhooks.js';
 import progressRoutes from './progress.js';
@@ -19,6 +21,19 @@ import { performanceMonitoring, getMetricsEndpoint } from '../middleware/perform
 
 const router = express.Router();
 
+// Beta signup rate limiter - 3 submissions per hour per IP
+const betaSignupRateLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 3, // 3 requests per hour
+  message: {
+    success: false,
+    error: 'Too many requests. Please try again in an hour.',
+    retryAfter: 3600
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 // Performance monitoring middleware (tracks all requests)
 router.use(performanceMonitoring);
 
@@ -33,6 +48,16 @@ if (process.env.NODE_ENV !== 'production') {
 
 // Authentication routes (public)
 router.use('/api/auth', authRoutes);
+
+// Beta signup routes (public - no authentication required)
+router.post('/api/beta-signup',
+  betaSignupRateLimiter,
+  betaSignupController.submitBetaSignup
+);
+
+router.get('/api/beta-signup/spots-remaining',
+  betaSignupController.getSpotsRemaining
+);
 
 // Webhook routes (mixed auth)
 router.use('/api/webhooks', webhookRoutes);
