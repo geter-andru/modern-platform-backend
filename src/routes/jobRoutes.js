@@ -11,6 +11,7 @@ import {
   submitPersonaJob,
   submitRatingJob,
   submitBatchRatingJob,
+  submitIcpJob,
   getJobStatusEndpoint,
   getCurrentUserJobs
 } from '../controllers/jobController.js';
@@ -48,6 +49,15 @@ router.post(
   customerRateLimit(5, 60 * 60 * 1000), // 5 per hour (more expensive)
   authenticateSupabaseJWT,
   submitBatchRatingJob
+);
+
+// Submit ICP generation job
+// POST /api/jobs/generate-icp
+router.post(
+  '/generate-icp',
+  customerRateLimit(5, 60 * 60 * 1000), // 5 per hour (expensive AI operation)
+  authenticateSupabaseJWT,
+  submitIcpJob
 );
 
 /**

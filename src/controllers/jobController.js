@@ -11,9 +11,11 @@ import {
   addPersonaGenerationJob,
   addCompanyRatingJob,
   addBatchRatingJob,
+  addICPGenerationJob,
   getPersonaQueue,
   getRatingQueue,
   getBatchRatingQueue,
+  getICPQueue,
   getJobStatus,
   getQueueStats
 } from '../lib/queue.js';
@@ -282,6 +284,86 @@ export const submitBatchRatingJob = async (req, res, next) => {
 };
 
 /**
+ * Submit ICP generation job
+ * POST /api/jobs/generate-icp
+ *
+ * Request body:
+ * {
+ *   productInfo: {
+ *     name: string (optional),
+ *     description: string (optional),
+ *     distinguishingFeature: string (optional),
+ *     businessModel: string (optional)
+ *   },
+ *   industry: string (optional),
+ *   goals: Array<string> (optional)
+ * }
+ *
+ * Response:
+ * {
+ *   success: boolean,
+ *   jobId: string,
+ *   status: 'queued',
+ *   message: string
+ * }
+ */
+export const submitIcpJob = async (req, res, next) => {
+  try {
+    const { productInfo, industry, goals } = req.body;
+    const userId = req.user?.id;
+
+    logger.info('[JobController] ICP generation job submission', { userId });
+
+    // Validate authentication
+    if (!userId) {
+      logger.warn('[JobController] Unauthenticated ICP generation request');
+      return res.status(401).json({
+        success: false,
+        error: 'Authentication required'
+      });
+    }
+
+    // Validate that at least productInfo has some data
+    if (!productInfo || (typeof productInfo === 'object' && Object.keys(productInfo).length === 0)) {
+      logger.warn('[JobController] Missing productInfo for ICP generation');
+      return res.status(400).json({
+        success: false,
+        error: 'productInfo is required',
+        details: 'At least one field (name, description, distinguishingFeature, or businessModel) must be provided'
+      });
+    }
+
+    // Add job to queue
+    const jobInfo = await addICPGenerationJob({
+      customerId: userId,
+      productInfo: productInfo || {},
+      industry: industry || null,
+      goals: goals || null
+    });
+
+    logger.info('[JobController] ICP generation job queued', {
+      jobId: jobInfo.jobId,
+      userId
+    });
+
+    res.status(202).json({
+      success: true,
+      jobId: jobInfo.jobId,
+      status: jobInfo.status,
+      message: 'ICP generation job queued. Use jobId to check status.',
+      estimatedDuration: '20-30 seconds',
+      statusEndpoint: `/api/jobs/${jobInfo.jobId}`
+    });
+  } catch (error) {
+    logger.error('[JobController] Failed to submit ICP generation job', {
+      error: error.message,
+      stack: error.stack
+    });
+    next(error);
+  }
+};
+
+/**
  * Get job status
  * GET /api/jobs/:jobId
  *
@@ -327,6 +409,9 @@ export const getJobStatusEndpoint = async (req, res, next) => {
     } else if (jobId.startsWith('batch-')) {
       queue = getBatchRatingQueue();
       queueType = 'batch-rating';
+    } else if (jobId.startsWith('icp-')) {
+      queue = getICPQueue();
+      queueType = 'icp-generation';
     } else {
       return res.status(400).json({
         success: false,

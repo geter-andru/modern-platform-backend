@@ -15,8 +15,12 @@ import jobRoutes from './jobRoutes.js';
 import { validate, paramSchemas, costCalculationSchema, costCalculationSaveSchema, costCalculationCompareSchema, businessCaseSchema, businessCaseExportSchema, exportFormatSchema, comprehensiveExportSchema } from '../middleware/validation.js';
 import { strictRateLimiter } from '../middleware/security.js';
 import { authenticateMulti, requireCustomerContext, customerRateLimit } from '../middleware/auth.js';
+import { performanceMonitoring, getMetricsEndpoint } from '../middleware/performanceMonitoring.js';
 
 const router = express.Router();
+
+// Performance monitoring middleware (tracks all requests)
+router.use(performanceMonitoring);
 
 // Health check routes (public)
 router.get('/health', healthController.checkHealth);
@@ -266,6 +270,11 @@ router.post('/api/resources/share',
   authenticateMulti,
   exportController.shareResource
 );
+
+// Performance metrics endpoint (internal monitoring - development/staging only)
+if (process.env.NODE_ENV !== 'production') {
+  router.get('/api/metrics', getMetricsEndpoint);
+}
 
 // API documentation route
 router.get('/api/docs', (req, res) => {

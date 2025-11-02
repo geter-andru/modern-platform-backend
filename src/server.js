@@ -25,6 +25,7 @@ import {
   sentryTracingHandler,
   sentryErrorHandler,
 } from './middleware/sentryMiddleware.js';
+import { startAllWorkers } from './workers/index.js';
 
 // Create Express application
 const app = express();
@@ -119,6 +120,14 @@ if (config.server.nodeEnv !== 'test') {
     logger.info(`🔗 API Base URL: ${config.server.apiBaseUrl}`);
     logger.info(`📚 API Documentation: ${config.server.apiBaseUrl}/api/docs`);
     logger.info(`❤️  Health Check: ${config.server.apiBaseUrl}/health`);
+    
+    // Start background workers after server is ready
+    try {
+      startAllWorkers();
+      logger.info('✅ All background workers started');
+    } catch (error) {
+      logger.error('❌ Failed to start workers:', error);
+    }
   });
 }
 

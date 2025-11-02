@@ -1,5 +1,6 @@
 import config from '../config/index.js';
 import logger from '../utils/logger.js';
+import { recordAIMetric, retryOperation } from '../middleware/performanceMonitoring.js';
 
 class AIService {
   constructor() {
@@ -11,31 +12,153 @@ class AIService {
    * Generate ICP (Ideal Customer Profile) analysis using AI
    */
   async generateICPAnalysis(customerData, businessContext = {}) {
+    const startTime = Date.now();
+
     try {
       const prompt = this.buildICPPrompt(customerData, businessContext);
-      
-      const aiResponse = await this.callAnthropicAPI(prompt, {
-        model: 'claude-3-opus-20240229',
-        max_tokens: 2000,
-        temperature: 0.7
-      });
+
+      // Wrap API call with retry logic (max 3 retries)
+      const aiResponse = await retryOperation(
+        () => this.callAnthropicAPI(prompt, {
+          model: 'claude-3-opus-20240229',
+          max_tokens: 2000,
+          temperature: 0.7
+        }),
+        {
+          maxRetries: 3,
+          delayMs: 1000,
+          operationName: 'generateICP'
+        }
+      );
 
       const icpAnalysis = this.parseICPResponse(aiResponse);
-      
+
       logger.info(`Generated ICP analysis for customer ${customerData.customerId}`);
-      
+
+      // Record successful AI call metric
+      recordAIMetric({
+        operation: 'generateICP',
+        duration: Date.now() - startTime,
+        success: true,
+        customerId: customerData.customerId
+      });
+
       return {
         success: true,
         data: icpAnalysis,
         metadata: {
           generatedAt: new Date().toISOString(),
-          model: 'claude-3-sonnet',
+          model: 'claude-3-opus-20240229',
           confidence: this.calculateConfidence(icpAnalysis),
-          source: 'ai_generated'
+          source: 'ai_generated',
+          duration: Date.now() - startTime
         }
       };
     } catch (error) {
       logger.error(`Failed to generate ICP analysis: ${error.message}`);
+
+      // Record failed AI call metric
+      recordAIMetric({
+        operation: 'generateICP',
+        duration: Date.now() - startTime,
+        success: false,
+        error: error.message,
+        customerId: customerData.customerId
+      });
+
+      return {
+        success: false,
+        error: error.message,
+        fallback: this.getICPFallback(customerData)
+      };
+    }
+  }
+
+  /**
+   * Generate ICP analysis with streaming support
+   * @param {Object} customerData - Customer data
+   * @param {Object} businessContext - Business context
+   * @param {Function} onProgress - Callback for progress updates (progress, stage)
+   * @returns {Promise<Object>} Result with ICP data
+   */
+  async generateICPAnalysisStreaming(customerData, businessContext = {}, onProgress = null) {
+    const startTime = Date.now();
+
+    try {
+      const prompt = this.buildICPPrompt(customerData, businessContext);
+
+      logger.info(`Starting streaming ICP generation for customer ${customerData.customerId}`);
+
+      // Wrap streaming API call with retry logic
+      const aiResponse = await retryOperation(
+        () => this.callAnthropicAPIStreaming(
+          prompt,
+          {
+            model: 'claude-3-opus-20240229',
+            max_tokens: 2000,
+            temperature: 0.7
+          },
+          (progress, chunk) => {
+            // Map streaming progress to user-friendly stages
+            let stage = 'Andru is thinking...';
+            if (progress < 30) {
+              stage = 'Analyzing your product...';
+            } else if (progress < 60) {
+              stage = 'Identifying customer segments...';
+            } else if (progress < 90) {
+              stage = 'Crafting buyer personas...';
+            } else {
+              stage = 'Finalizing analysis...';
+            }
+
+            if (onProgress) {
+              onProgress(progress, stage);
+            }
+          }
+        ),
+        {
+          maxRetries: 2, // Fewer retries for streaming (it's more expensive)
+          delayMs: 1500,
+          operationName: 'generateICPStreaming'
+        }
+      );
+
+      const icpAnalysis = this.parseICPResponse(aiResponse);
+
+      logger.info(`Streaming ICP generation completed for customer ${customerData.customerId}`);
+
+      // Record successful streaming AI call metric
+      recordAIMetric({
+        operation: 'generateICPStreaming',
+        duration: Date.now() - startTime,
+        success: true,
+        customerId: customerData.customerId
+      });
+
+      return {
+        success: true,
+        data: icpAnalysis,
+        metadata: {
+          generatedAt: new Date().toISOString(),
+          model: 'claude-3-opus-20240229',
+          confidence: this.calculateConfidence(icpAnalysis),
+          source: 'ai_generated',
+          streaming: true,
+          duration: Date.now() - startTime
+        }
+      };
+    } catch (error) {
+      logger.error(`Failed to generate streaming ICP analysis: ${error.message}`);
+
+      // Record failed AI call metric
+      recordAIMetric({
+        operation: 'generateICPStreaming',
+        duration: Date.now() - startTime,
+        success: false,
+        error: error.message,
+        customerId: customerData.customerId
+      });
+
       return {
         success: false,
         error: error.message,
@@ -48,31 +171,60 @@ class AIService {
    * Generate cost of inaction calculation with AI insights
    */
   async generateCostCalculation(customerData, inputData) {
+    const startTime = Date.now();
+
     try {
       const prompt = this.buildCostCalculationPrompt(customerData, inputData);
-      
-      const aiResponse = await this.callAnthropicAPI(prompt, {
-        model: 'claude-3-opus-20240229',
-        max_tokens: 1500,
-        temperature: 0.5
-      });
+
+      // Wrap API call with retry logic
+      const aiResponse = await retryOperation(
+        () => this.callAnthropicAPI(prompt, {
+          model: 'claude-3-opus-20240229',
+          max_tokens: 1500,
+          temperature: 0.5
+        }),
+        {
+          maxRetries: 3,
+          delayMs: 1000,
+          operationName: 'generateCostCalculation'
+        }
+      );
 
       const costAnalysis = this.parseCostCalculationResponse(aiResponse, inputData);
-      
+
       logger.info(`Generated cost calculation for customer ${customerData.customerId}`);
-      
+
+      // Record successful AI call metric
+      recordAIMetric({
+        operation: 'generateCostCalculation',
+        duration: Date.now() - startTime,
+        success: true,
+        customerId: customerData.customerId
+      });
+
       return {
         success: true,
         data: costAnalysis,
         metadata: {
           generatedAt: new Date().toISOString(),
-          model: 'claude-3-sonnet',
+          model: 'claude-3-opus-20240229',
           confidence: this.calculateConfidence(costAnalysis),
-          source: 'ai_generated'
+          source: 'ai_generated',
+          duration: Date.now() - startTime
         }
       };
     } catch (error) {
       logger.error(`Failed to generate cost calculation: ${error.message}`);
+
+      // Record failed AI call metric
+      recordAIMetric({
+        operation: 'generateCostCalculation',
+        duration: Date.now() - startTime,
+        success: false,
+        error: error.message,
+        customerId: customerData.customerId
+      });
+
       return {
         success: false,
         error: error.message,
@@ -85,31 +237,60 @@ class AIService {
    * Generate business case with AI
    */
   async generateBusinessCase(customerData, requirements) {
+    const startTime = Date.now();
+
     try {
       const prompt = this.buildBusinessCasePrompt(customerData, requirements);
-      
-      const aiResponse = await this.callAnthropicAPI(prompt, {
-        model: 'claude-3-opus-20240229',
-        max_tokens: 3000,
-        temperature: 0.6
-      });
+
+      // Wrap API call with retry logic
+      const aiResponse = await retryOperation(
+        () => this.callAnthropicAPI(prompt, {
+          model: 'claude-3-opus-20240229',
+          max_tokens: 3000,
+          temperature: 0.6
+        }),
+        {
+          maxRetries: 3,
+          delayMs: 1000,
+          operationName: 'generateBusinessCase'
+        }
+      );
 
       const businessCase = this.parseBusinessCaseResponse(aiResponse);
-      
+
       logger.info(`Generated business case for customer ${customerData.customerId}`);
-      
+
+      // Record successful AI call metric
+      recordAIMetric({
+        operation: 'generateBusinessCase',
+        duration: Date.now() - startTime,
+        success: true,
+        customerId: customerData.customerId
+      });
+
       return {
         success: true,
         data: businessCase,
         metadata: {
           generatedAt: new Date().toISOString(),
-          model: 'claude-3-sonnet',
+          model: 'claude-3-opus-20240229',
           confidence: this.calculateConfidence(businessCase),
-          source: 'ai_generated'
+          source: 'ai_generated',
+          duration: Date.now() - startTime
         }
       };
     } catch (error) {
       logger.error(`Failed to generate business case: ${error.message}`);
+
+      // Record failed AI call metric
+      recordAIMetric({
+        operation: 'generateBusinessCase',
+        duration: Date.now() - startTime,
+        success: false,
+        error: error.message,
+        customerId: customerData.customerId
+      });
+
       return {
         success: false,
         error: error.message,
@@ -320,6 +501,104 @@ Format as JSON:
 
     const result = await response.json();
     return result.content[0].text;
+  }
+
+  /**
+   * Call Anthropic Claude API with streaming
+   * @param {string} prompt - The prompt to send
+   * @param {Object} options - API options
+   * @param {Function} onProgress - Callback for progress updates (progress, chunk)
+   * @returns {Promise<string>} Complete response text
+   */
+  async callAnthropicAPIStreaming(prompt, options = {}, onProgress = null) {
+    if (!this.anthropicApiKey) {
+      throw new Error('Anthropic API key not configured');
+    }
+
+    const modelToUse = options.model || 'claude-3-opus-20240229';
+    logger.info(`🤖 Calling Anthropic API (streaming) with model: ${modelToUse}`);
+
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-Key': this.anthropicApiKey,
+        'Anthropic-Version': '2023-06-01'
+      },
+      body: JSON.stringify({
+        model: modelToUse,
+        max_tokens: options.max_tokens || 2000,
+        temperature: options.temperature || 0.7,
+        stream: true, // Enable streaming
+        messages: [
+          {
+            role: 'user',
+            content: prompt
+          }
+        ]
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`Anthropic API error: ${response.status} ${response.statusText}`);
+    }
+
+    // Process the streaming response
+    let fullText = '';
+    let bytesReceived = 0;
+    const estimatedTotalBytes = (options.max_tokens || 2000) * 4; // Rough estimate: 4 bytes per token
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+
+        if (done) break;
+
+        bytesReceived += value.length;
+        const chunk = decoder.decode(value, { stream: true });
+
+        // Parse SSE (Server-Sent Events) format
+        const lines = chunk.split('\n');
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const data = line.slice(6);
+
+            // Skip control messages
+            if (data === '[DONE]' || !data.trim()) continue;
+
+            try {
+              const parsed = JSON.parse(data);
+
+              // Handle content_block_delta events (text chunks)
+              if (parsed.type === 'content_block_delta' && parsed.delta?.text) {
+                fullText += parsed.delta.text;
+
+                // Notify progress callback if provided
+                if (onProgress) {
+                  const progress = Math.min(95, Math.round((bytesReceived / estimatedTotalBytes) * 100));
+                  onProgress(progress, parsed.delta.text);
+                }
+              }
+            } catch (e) {
+              // Skip unparseable lines
+            }
+          }
+        }
+      }
+
+      // Final progress update
+      if (onProgress) {
+        onProgress(100, '');
+      }
+
+      logger.info(`🤖 Streaming complete: ${fullText.length} characters received`);
+      return fullText;
+    } finally {
+      reader.releaseLock();
+    }
   }
 
   /**

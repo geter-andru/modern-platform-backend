@@ -18,6 +18,7 @@ const QUEUE_NAMES = {
   PERSONA_GENERATION: 'persona-generation',
   COMPANY_RATING: 'company-rating',
   BATCH_RATING: 'batch-rating',
+  ICP_GENERATION: 'icp-generation',
 };
 
 /**
@@ -44,6 +45,7 @@ const DEFAULT_JOB_OPTIONS = {
 let personaQueue = null;
 let ratingQueue = null;
 let batchRatingQueue = null;
+let icpQueue = null;
 
 /**
  * Initialize a queue (BullMQ with Redis or SimpleQueue in-memory)
@@ -158,6 +160,26 @@ export function getBatchRatingQueue() {
     });
   }
   return batchRatingQueue;
+}
+
+/**
+ * Get or create the ICP generation queue
+ *
+ * @returns {Queue} ICP generation queue
+ */
+export function getICPQueue() {
+  if (!icpQueue) {
+    icpQueue = createQueue(QUEUE_NAMES.ICP_GENERATION, {
+      defaultJobOptions: {
+        attempts: 2, // AI operations less retries (expensive)
+        backoff: {
+          type: 'exponential',
+          delay: 5000, // Wait longer between AI retries
+        },
+      },
+    });
+  }
+  return icpQueue;
 }
 
 /**
@@ -292,6 +314,53 @@ export async function addBatchRatingJob(data, options = {}) {
 }
 
 /**
+ * Add a job to the ICP generation queue
+ *
+ * @param {Object} data - Job data
+ * @param {string} data.customerId - User ID
+ * @param {Object} data.productInfo - Product information
+ * @param {string} [data.productInfo.name] - Product name
+ * @param {string} [data.productInfo.description] - Product description
+ * @param {string} [data.productInfo.distinguishingFeature] - Distinguishing feature
+ * @param {string} [data.productInfo.businessModel] - Business model
+ * @param {string} [data.industry] - Industry (optional)
+ * @param {Array<string>} [data.goals] - Business goals (optional)
+ * @param {Object} [options] - Additional job options
+ * @returns {Promise<Object>} Job object with id
+ */
+export async function addICPGenerationJob(data, options = {}) {
+  const queue = getICPQueue();
+
+  // Validate required fields
+  if (!data.customerId) {
+    throw new Error('Missing required field: customerId');
+  }
+
+  const jobData = {
+    customerId: data.customerId,
+    productInfo: data.productInfo || {},
+    industry: data.industry || null,
+    goals: data.goals || null,
+    submittedAt: new Date().toISOString(),
+  };
+
+  const jobOptions = {
+    jobId: `icp-${data.customerId}-${Date.now()}`,
+    ...options,
+  };
+
+  console.log(`[Queue] Adding ICP generation job for user: ${data.customerId}`);
+
+  const job = await queue.add('generate-icp', jobData, jobOptions);
+
+  return {
+    jobId: job.id,
+    queueName: QUEUE_NAMES.ICP_GENERATION,
+    status: 'queued',
+  };
+}
+
+/**
  * Get job status by ID
  *
  * @param {Queue} queue - Queue instance
@@ -368,6 +437,9 @@ export async function closeQueues() {
   if (batchRatingQueue) {
     promises.push(batchRatingQueue.close());
   }
+  if (icpQueue) {
+    promises.push(icpQueue.close());
+  }
 
   await Promise.all(promises);
 
@@ -384,11 +456,13 @@ export async function checkQueueHealth() {
     const personaQueueInstance = getPersonaQueue();
     const ratingQueueInstance = getRatingQueue();
     const batchRatingQueueInstance = getBatchRatingQueue();
+    const icpQueueInstance = getICPQueue();
 
-    const [personaStats, ratingStats, batchStats] = await Promise.all([
+    const [personaStats, ratingStats, batchStats, icpStats] = await Promise.all([
       getQueueStats(personaQueueInstance),
       getQueueStats(ratingQueueInstance),
       getQueueStats(batchRatingQueueInstance),
+      getQueueStats(icpQueueInstance),
     ]);
 
     return {
@@ -397,6 +471,7 @@ export async function checkQueueHealth() {
         personaGeneration: personaStats,
         companyRating: ratingStats,
         batchRating: batchStats,
+        icpGeneration: icpStats,
       },
     };
   } catch (error) {
@@ -413,9 +488,11 @@ export default {
   getPersonaQueue,
   getRatingQueue,
   getBatchRatingQueue,
+  getICPQueue,
   addPersonaGenerationJob,
   addCompanyRatingJob,
   addBatchRatingJob,
+  addICPGenerationJob,
   getJobStatus,
   getQueueStats,
   closeQueues,
