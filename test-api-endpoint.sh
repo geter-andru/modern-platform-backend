@@ -89,3 +89,4 @@ echo "   2. Run: curl -X POST ${BACKEND_URL}/api/jobs/generate-icp \\"
 echo "      -H 'Content-Type: application/json' \\"
 echo "      -H 'Authorization: Bearer YOUR_TOKEN' \\"
 echo "      -d '{\"productInfo\":{\"name\":\"Test\"}}'"
+

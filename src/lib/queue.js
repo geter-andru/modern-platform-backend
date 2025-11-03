@@ -19,6 +19,7 @@ const QUEUE_NAMES = {
   COMPANY_RATING: 'company-rating',
   BATCH_RATING: 'batch-rating',
   ICP_GENERATION: 'icp-generation',
+  PRODUCT_EXTRACTION: 'product-extraction',
 };
 
 /**
@@ -46,6 +47,7 @@ let personaQueue = null;
 let ratingQueue = null;
 let batchRatingQueue = null;
 let icpQueue = null;
+let productExtractionQueue = null;
 
 /**
  * Initialize a queue (BullMQ with Redis or SimpleQueue in-memory)
@@ -180,6 +182,26 @@ export function getICPQueue() {
     });
   }
   return icpQueue;
+}
+
+/**
+ * Get or create the product extraction queue
+ *
+ * @returns {Queue} Product extraction queue
+ */
+export function getProductExtractionQueue() {
+  if (!productExtractionQueue) {
+    productExtractionQueue = createQueue(QUEUE_NAMES.PRODUCT_EXTRACTION, {
+      defaultJobOptions: {
+        attempts: 2, // Retry once if extraction fails
+        backoff: {
+          type: 'exponential',
+          delay: 5000, // Wait 5 seconds before retry
+        },
+      },
+    });
+  }
+  return productExtractionQueue;
 }
 
 /**
@@ -361,6 +383,47 @@ export async function addICPGenerationJob(data, options = {}) {
 }
 
 /**
+ * Add a job to the product extraction queue
+ *
+ * @param {Object} data - Job data
+ * @param {string} data.customerId - User ID
+ * @param {string} data.email - User email address
+ * @param {string} data.domain - Company domain to extract from
+ * @param {Object} [options] - Additional job options
+ * @returns {Promise<Object>} Job object with id
+ */
+export async function addProductExtractionJob(data, options = {}) {
+  const queue = getProductExtractionQueue();
+
+  // Validate required fields
+  if (!data.customerId || !data.email || !data.domain) {
+    throw new Error('Missing required fields: customerId, email, domain');
+  }
+
+  const jobData = {
+    customerId: data.customerId,
+    email: data.email,
+    domain: data.domain,
+    submittedAt: new Date().toISOString(),
+  };
+
+  const jobOptions = {
+    jobId: `product-extraction-${data.customerId}-${Date.now()}`,
+    ...options,
+  };
+
+  console.log(`[Queue] Adding product extraction job for domain: ${data.domain}`);
+
+  const job = await queue.add('extract-product', jobData, jobOptions);
+
+  return {
+    jobId: job.id,
+    queueName: QUEUE_NAMES.PRODUCT_EXTRACTION,
+    status: 'queued',
+  };
+}
+
+/**
  * Get job status by ID
  *
  * @param {Queue} queue - Queue instance
@@ -440,6 +503,9 @@ export async function closeQueues() {
   if (icpQueue) {
     promises.push(icpQueue.close());
   }
+  if (productExtractionQueue) {
+    promises.push(productExtractionQueue.close());
+  }
 
   await Promise.all(promises);
 
@@ -457,12 +523,14 @@ export async function checkQueueHealth() {
     const ratingQueueInstance = getRatingQueue();
     const batchRatingQueueInstance = getBatchRatingQueue();
     const icpQueueInstance = getICPQueue();
+    const productExtractionQueueInstance = getProductExtractionQueue();
 
-    const [personaStats, ratingStats, batchStats, icpStats] = await Promise.all([
+    const [personaStats, ratingStats, batchStats, icpStats, productExtractionStats] = await Promise.all([
       getQueueStats(personaQueueInstance),
       getQueueStats(ratingQueueInstance),
       getQueueStats(batchRatingQueueInstance),
       getQueueStats(icpQueueInstance),
+      getQueueStats(productExtractionQueueInstance),
     ]);
 
     return {
@@ -472,6 +540,7 @@ export async function checkQueueHealth() {
         companyRating: ratingStats,
         batchRating: batchStats,
         icpGeneration: icpStats,
+        productExtraction: productExtractionStats,
       },
     };
   } catch (error) {
@@ -489,10 +558,12 @@ export default {
   getRatingQueue,
   getBatchRatingQueue,
   getICPQueue,
+  getProductExtractionQueue,
   addPersonaGenerationJob,
   addCompanyRatingJob,
   addBatchRatingJob,
   addICPGenerationJob,
+  addProductExtractionJob,
   getJobStatus,
   getQueueStats,
   closeQueues,

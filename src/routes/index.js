@@ -14,6 +14,9 @@ import testRoutes from './testRoutes.js';
 import aiPersonaRoutes from './aiPersonaRoutes.js';
 import aiRatingRoutes from './aiRatingRoutes.js';
 import jobRoutes from './jobRoutes.js';
+import brandExtractionRoutes from './brandExtractionRoutes.js';
+import productExtractionRoutes from './productExtractionRoutes.js';
+import demoRoutes from './demoRoutes.js';
 import { validate, paramSchemas, costCalculationSchema, costCalculationSaveSchema, costCalculationCompareSchema, businessCaseSchema, businessCaseExportSchema, exportFormatSchema, comprehensiveExportSchema } from '../middleware/validation.js';
 import { strictRateLimiter } from '../middleware/security.js';
 import { authenticateMulti, requireCustomerContext, customerRateLimit } from '../middleware/auth.js';
@@ -59,6 +62,9 @@ router.get('/api/beta-signup/spots-remaining',
   betaSignupController.getSpotsRemaining
 );
 
+// Demo routes (public - no authentication required)
+router.use('/api/demo', demoRoutes);
+
 // Webhook routes (mixed auth)
 router.use('/api/webhooks', webhookRoutes);
 
@@ -78,6 +84,12 @@ router.use('/api/ratings', aiRatingRoutes);
 
 // Job Queue routes (async job submission and status)
 router.use('/api/jobs', jobRoutes);
+
+// Brand Extraction routes (AI-powered logo and color extraction)
+router.use('/api/brand-extraction', brandExtractionRoutes);
+
+// Product Extraction routes (AI-powered product details extraction)
+router.use('/api/product-extraction', productExtractionRoutes);
 
 // Customer routes (requires authentication)
 router.get('/api/customer/:customerId',
@@ -360,6 +372,10 @@ router.get('/api/docs', (req, res) => {
           'POST /api/auth/api-key': 'Generate API key',
           'GET /api/auth/permissions': 'Get customer permissions',
           'GET /api/auth/status': 'Authentication service status'
+        },
+        demo: {
+          'POST /api/demo/generate-icp': 'Generate demo ICP analysis (no auth, 3 per 24h)',
+          'GET /api/demo/limits': 'Check remaining demo generations for current IP'
         },
         aiPersonas: {
           'POST /api/ai/generate-personas': 'Generate 3-5 buyer personas using Claude AI',

@@ -10,6 +10,7 @@
 import { startPersonaWorker } from './personaWorker.js';
 import { startRatingWorker, startBatchRatingWorker } from './ratingWorker.js';
 import { startICPWorker } from './icpWorker.js';
+import { startProductExtractionWorker } from './productExtractionWorker.js';
 import logger from '../utils/logger.js';
 
 // Store worker instances
@@ -17,7 +18,8 @@ let workers = {
   personaWorker: null,
   ratingWorker: null,
   batchRatingWorker: null,
-  icpWorker: null
+  icpWorker: null,
+  productExtractionWorker: null
 };
 
 /**
@@ -47,6 +49,10 @@ export function startAllWorkers() {
     // Start ICP generation worker
     workers.icpWorker = startICPWorker();
     logger.info('[Workers] ✅ ICP worker started');
+
+    // Start product extraction worker
+    workers.productExtractionWorker = startProductExtractionWorker();
+    logger.info('[Workers] ✅ Product extraction worker started');
 
     logger.info('[Workers] All workers started successfully');
 
@@ -88,13 +94,18 @@ export async function stopAllWorkers() {
     stopPromises.push(workers.icpWorker.close());
   }
 
+  if (workers.productExtractionWorker) {
+    stopPromises.push(workers.productExtractionWorker.close());
+  }
+
   await Promise.all(stopPromises);
 
   workers = {
     personaWorker: null,
     ratingWorker: null,
     batchRatingWorker: null,
-    icpWorker: null
+    icpWorker: null,
+    productExtractionWorker: null
   };
 
   logger.info('[Workers] All workers stopped');
@@ -122,6 +133,10 @@ export function getWorkerStatus() {
     icpWorker: {
       running: workers.icpWorker?.running || false,
       queueName: 'icp-generation'
+    },
+    productExtractionWorker: {
+      running: workers.productExtractionWorker?.running || false,
+      queueName: 'product-extraction'
     }
   };
 }
