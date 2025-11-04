@@ -35,6 +35,17 @@ const demoRateLimiter = process.env.NODE_ENV === 'test'
   : rateLimit({
       windowMs: 24 * 60 * 60 * 1000, // 24 hours
       max: 3, // 3 requests per 24 hours per IP
+      // Skip rate limiting for localhost (development/testing)
+      skip: (req) => {
+        const ip = req.ip || req.connection.remoteAddress;
+        const isLocalhost = ip === '::1' ||
+                          ip === '127.0.0.1' ||
+                          ip === '::ffff:127.0.0.1';
+        if (isLocalhost) {
+          logger.info(`[Demo Rate Limit] Skipping for localhost: ${ip}`);
+        }
+        return isLocalhost;
+      },
       message: {
         success: false,
         error: 'Demo limit reached. You\'ve generated 3 demo ICPs in the last 24 hours.',

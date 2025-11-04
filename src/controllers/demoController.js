@@ -106,9 +106,11 @@ export const generateDemoICP = async (req, res, next) => {
     const apiStartTime = Date.now();
 
     // ===== ANTHROPIC API CALL =====
+    // NOTE: Using Opus as API key doesn't have Sonnet 3.5 access
+    // With Sonnet 3.5, this would be ~12-15s (3x faster)
     const response = await anthropic.messages.create({
       model: 'claude-3-opus-20240229',
-      max_tokens: 1500, // Lower than paid (4096) for demo
+      max_tokens: 1200, // Reduced from 1500 for faster generation
       temperature: 0.7,
       messages: [{
         role: 'user',
@@ -226,66 +228,26 @@ export const generateDemoICP = async (req, res, next) => {
  * Generates exactly 3 buyer personas (not 3-5)
  */
 function buildDemoICPPrompt(productName, description, businessModel) {
-  return `You are a B2B marketing and sales strategy expert specializing in creating detailed buyer personas.
+  return `You are a B2B marketing expert. Generate EXACTLY 3 buyer personas for this product.
 
-TASK: Generate EXACTLY 3 comprehensive buyer personas for the following product.
+PRODUCT: ${productName}
+DESCRIPTION: ${description}
+BUSINESS MODEL: ${businessModel}
 
-PRODUCT INFORMATION:
-- Product Name: ${productName}
-- Description: ${description}
-- Business Model: ${businessModel}
-
-PERSONA REQUIREMENTS:
-Generate EXACTLY 3 personas (no more, no less). For each persona, provide:
-
-1. TITLE/ROLE
-   - Specific job title (e.g., "VP of Engineering", "Director of Product Marketing")
-   - Level in organization (C-Suite, VP, Director, Manager, Individual Contributor)
-   - Department/function
-
-2. DEMOGRAPHICS
-   - Company size (employee count range)
-   - Company revenue range
-   - Industry vertical (be specific)
-   - Geographic region
-   - Years of experience in role
-
-3. PSYCHOGRAPHICS
-   - Primary goals (3-4 specific, measurable goals)
-   - Key challenges (3-4 pain points they face daily)
-   - Motivations (what drives their decisions)
-   - Fears (what keeps them up at night)
-   - Values (what they prioritize in solutions)
-
-4. BUYING BEHAVIOR
-   - Decision criteria (what factors influence their choice)
-   - Budget authority (Recommends | Approves | Controls)
-   - Buying process role (Initiator | Influencer | Decision Maker | Purchaser)
-   - Information sources (where they research solutions)
-   - Preferred communication channels
-
-ICP OVERVIEW (also include this):
-- Target Market: Overall target market description
-- Ideal Company Size: Employee and revenue ranges
-- Key Industries: Top 3-5 industry verticals
-- Geographic Focus: Primary regions
-- Key Value Proposition: Main benefit that resonates across personas
-
-OUTPUT FORMAT:
-Return ONLY valid JSON (no markdown, no code blocks, no explanations).
+Return ONLY valid JSON with NO trailing commas, NO markdown blocks. Structure:
 
 {
   "personas": [
     {
-      "title": "exact job title",
+      "title": "specific job title",
       "level": "C-Suite|VP|Director|Manager|IC",
       "department": "department name",
       "demographics": {
-        "companySize": "50-200 employees",
-        "revenue": "$10M-$50M",
-        "industryVertical": "B2B SaaS",
-        "region": "North America",
-        "yearsExperience": "5-10 years"
+        "companySize": "employee range",
+        "revenue": "revenue range",
+        "industryVertical": "specific industry",
+        "region": "geographic region",
+        "yearsExperience": "years range"
       },
       "psychographics": {
         "goals": ["goal 1", "goal 2", "goal 3"],
@@ -296,27 +258,23 @@ Return ONLY valid JSON (no markdown, no code blocks, no explanations).
       },
       "buyingBehavior": {
         "decisionCriteria": ["criteria 1", "criteria 2", "criteria 3"],
-        "budgetAuthority": "Approves",
-        "buyingProcessRole": "Decision Maker",
+        "budgetAuthority": "Recommends|Approves|Controls",
+        "buyingProcessRole": "Initiator|Influencer|Decision Maker|Purchaser",
         "informationSources": ["source 1", "source 2"],
-        "preferredChannels": ["LinkedIn", "Industry events"]
+        "preferredChannels": ["channel 1", "channel 2"]
       }
     }
   ],
   "icp": {
-    "targetMarket": "overall target market description",
-    "idealCompanySize": "50-500 employees, $10M-$100M revenue",
+    "targetMarket": "description",
+    "idealCompanySize": "size ranges",
     "keyIndustries": ["industry 1", "industry 2", "industry 3"],
-    "geographicFocus": ["North America", "Europe"],
-    "keyValueProposition": "main benefit statement"
+    "geographicFocus": ["region 1", "region 2"],
+    "keyValueProposition": "main benefit"
   }
 }
 
-IMPORTANT:
-- Generate EXACTLY 3 personas (not 2, not 4, exactly 3)
-- Be specific and actionable (avoid generic statements)
-- Use B2B SaaS terminology appropriate to the product
-- Focus on decision-makers and key influencers`;
+Generate EXACTLY 3 personas. Be specific and actionable. Use proper JSON formatting with no trailing commas.`;
 }
 
 /**
