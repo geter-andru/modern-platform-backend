@@ -91,3 +91,4 @@ echo "      -H 'Authorization: Bearer YOUR_TOKEN' \\"
 echo "      -d '{\"productInfo\":{\"name\":\"Test\"}}'"
 
 
+
