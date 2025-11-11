@@ -45,6 +45,9 @@ app.use(sanitizeInput);
 
 // Request parsing and compression
 app.use(compression());
+// Stripe webhook needs raw body for signature verification
+// MUST be applied BEFORE express.json()
+app.use('/api/payment/webhook', express.raw({ type: 'application/json' }));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 

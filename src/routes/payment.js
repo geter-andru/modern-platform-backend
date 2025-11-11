@@ -3,6 +3,7 @@ import Stripe from 'stripe';
 import { authenticateSupabaseJWT } from '../middleware/supabaseAuth.js';
 import logger from '../utils/logger.js';
 import supabaseDataService from '../services/supabaseDataService.js';
+import supabase from '../services/supabaseService.js';
 
 const router = express.Router();
 
@@ -15,8 +16,11 @@ const stripe = STRIPE_SECRET_KEY
 
 const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET;
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
-const TRIAL_PERIOD_DAYS = 3;
-const PRICE_ID = process.env.STRIPE_MONTHLY_PRICE_ID; // $99/month price ID from Stripe
+
+// Founding Member Pricing Configuration (December 1, 2025 Launch)
+const FOUNDING_MEMBER_EARLY_ACCESS_PRICE = 497; // Monthly during early access period
+const FOUNDING_MEMBER_FOREVER_LOCK_PRICE = 750; // Monthly after full platform launch
+const PLATFORM_ACCESS_GRANT_DATE = new Date('2025-12-01T00:00:00Z'); // December 1, 2025
 
 // Middleware to check if Stripe is configured
 const requireStripe = (req, res, next) => {
@@ -31,10 +35,32 @@ const requireStripe = (req, res, next) => {
 };
 
 /**
+ * ==================== DEPRECATED CODE - ARCHIVED 2025-11-10 ====================
+ *
  * POST /api/payment/create-subscription
- * Create a Stripe subscription with 3-day trial
- * Requires: Authenticated user
+ * OLD FLOW: User creates account first, then subscribes ($99/month + 3-day trial)
+ *
+ * DEPRECATED BECAUSE:
+ * - Replaced with payment-first architecture (founding member waitlist)
+ * - Users now pay via direct Stripe checkout link
+ * - Webhook creates account AFTER payment (not before)
+ * - No trial period in new pricing model
+ *
+ * NEW PRICING:
+ * - Direct Stripe link: https://buy.stripe.com/6oU9AVgJn4y78iqdU6bsc0n
+ * - $497/month early access → $750/month forever lock
+ * - Webhook handler: handleCheckoutCompleted() (lines 275-405)
+ *
+ * PRESERVED FOR:
+ * - Historical reference
+ * - Potential future self-service tier
+ * - Debugging/comparison during migration
+ *
+ * See: /dev/archive/deprecated-pricing-2025-11-10/README.md
+ * ==============================================================================
  */
+
+/*
 router.post('/create-subscription', requireStripe, authenticateSupabaseJWT, async (req, res) => {
   try {
     const userId = req.auth?.id;
@@ -112,13 +138,14 @@ router.post('/create-subscription', requireStripe, authenticateSupabaseJWT, asyn
     res.status(500).json({ error: 'Failed to create subscription' });
   }
 });
+*/
 
 /**
  * POST /api/payment/webhook
  * Handle Stripe webhook events
  * Processes: checkout.session.completed, customer.subscription.*, invoice.*
  */
-router.post('/webhook', requireStripe, express.raw({ type: 'application/json' }), async (req, res) => {
+router.post('/webhook', requireStripe, async (req, res) => {
   const sig = req.headers['stripe-signature'];
 
   let event;
@@ -251,29 +278,147 @@ router.post('/cancel-subscription', requireStripe, authenticateSupabaseJWT, asyn
 
 // ==================== Webhook Handlers ====================
 
+/**
+ * Handle Stripe checkout completion for founding member waitlist
+ *
+ * NEW FLOW (Payment-First Architecture):
+ * 1. Extract customer email from Stripe session
+ * 2. Find assessment by email (if exists)
+ * 3. Create Supabase auth user
+ * 4. Link assessment to new user
+ * 5. Create user_milestone: 'waitlist_paid'
+ * 6. Send magic link email for first login
+ */
 async function handleCheckoutCompleted(session) {
-  const customerId = session.metadata?.customer_id;
-  const subscriptionId = session.subscription;
+  try {
+    // Extract customer email from Stripe session
+    const customerEmail = session.customer_details?.email;
+    const stripeCustomerId = session.customer;
+    const stripeSubscriptionId = session.subscription;
 
-  if (!customerId || !subscriptionId) {
-    logger.warn('Missing metadata in checkout session', { sessionId: session.id });
-    return;
+    if (!customerEmail) {
+      logger.error('No customer email in checkout session', { sessionId: session.id });
+      return;
+    }
+
+    logger.info('Processing founding member payment', {
+      email: customerEmail,
+      sessionId: session.id
+    });
+
+    // Step 1: Find assessment by email
+    const { data: assessmentTokens, error: assessmentError } = await supabase
+      .from('assessment_tokens')
+      .select('*')
+      .eq('email', customerEmail)
+      .order('created_at', { ascending: false })
+      .limit(1);
+
+    if (assessmentError) {
+      logger.error('Error fetching assessment', { error: assessmentError, email: customerEmail });
+      // Continue - user may not have taken assessment yet
+    }
+
+    const assessmentToken = assessmentTokens?.[0];
+
+    // Step 2: Create Supabase auth user
+    const { data: authUser, error: authError } = await supabase.auth.admin.createUser({
+      email: customerEmail,
+      email_confirm: true, // Auto-confirm email
+      user_metadata: {
+        is_founding_member: true,
+        payment_date: new Date().toISOString(),
+        stripe_customer_id: stripeCustomerId,
+        assessment_token: assessmentToken?.token,
+      }
+    });
+
+    if (authError) {
+      logger.error('Error creating Supabase user', { error: authError, email: customerEmail });
+      throw authError;
+    }
+
+    logger.info('Supabase auth user created', { userId: authUser.user.id, email: customerEmail });
+
+    // Step 3: Link assessment to user (if exists)
+    if (assessmentToken) {
+      const { error: updateError } = await supabase
+        .from('assessment_tokens')
+        .update({
+          user_id: authUser.user.id,
+          updated_at: new Date().toISOString()
+        })
+        .eq('token', assessmentToken.token);
+
+      if (updateError) {
+        logger.error('Error linking assessment to user', { error: updateError });
+      } else {
+        logger.info('Assessment linked to user', {
+          userId: authUser.user.id,
+          token: assessmentToken.token
+        });
+      }
+    }
+
+    // Step 4: Create user_milestone: 'waitlist_paid'
+    const { error: milestoneError } = await supabase
+      .from('user_milestones')
+      .insert({
+        user_id: authUser.user.id,
+        milestone_type: 'waitlist_paid',
+        status: 'completed',
+        completed_at: new Date().toISOString(),
+        is_founding_member: true,
+        has_early_access: true,
+        access_granted_date: PLATFORM_ACCESS_GRANT_DATE.toISOString(),
+        forever_lock_price: FOUNDING_MEMBER_FOREVER_LOCK_PRICE,
+        stripe_customer_id: stripeCustomerId,
+        stripe_subscription_id: stripeSubscriptionId,
+        metadata: {
+          payment_session_id: session.id,
+          payment_amount: session.amount_total / 100, // Convert from cents
+          payment_currency: session.currency,
+          early_access_price: FOUNDING_MEMBER_EARLY_ACCESS_PRICE,
+        }
+      });
+
+    if (milestoneError) {
+      logger.error('Error creating milestone', { error: milestoneError });
+      throw milestoneError;
+    }
+
+    logger.info('Milestone created: waitlist_paid', { userId: authUser.user.id });
+
+    // Step 5: Send magic link email (Supabase handles this automatically)
+    const { error: magicLinkError } = await supabase.auth.admin.generateLink({
+      type: 'magiclink',
+      email: customerEmail,
+      options: {
+        redirectTo: `${FRONTEND_URL}/waitlist-welcome`
+      }
+    });
+
+    if (magicLinkError) {
+      logger.error('Error generating magic link', { error: magicLinkError });
+      // Don't throw - user can still login via Google OAuth
+    } else {
+      logger.info('Magic link sent', { email: customerEmail });
+    }
+
+    logger.info('Founding member onboarding complete', {
+      userId: authUser.user.id,
+      email: customerEmail,
+      accessGrantDate: PLATFORM_ACCESS_GRANT_DATE
+    });
+
+  } catch (error) {
+    logger.error('Error in handleCheckoutCompleted', {
+      error: error.message,
+      stack: error.stack,
+      sessionId: session.id
+    });
+    throw error;
   }
-
-  // Get subscription details
-  const subscription = await stripe.subscriptions.retrieve(subscriptionId);
-  const trialEnd = subscription.trial_end ? new Date(subscription.trial_end * 1000) : null;
-
-  // Update customer in database
-  await supabaseDataService.updateCustomer(customerId, {
-    stripe_subscription_id: subscriptionId,
-    subscription_status: subscription.status === 'trialing' ? 'trial' : 'active',
-    trial_end_date: trialEnd,
-    subscription_start_date: new Date(subscription.created * 1000),
-    subscription_current_period_end: new Date(subscription.current_period_end * 1000),
-  });
-
-  logger.info('Checkout completed, customer updated', { customerId, subscriptionId, status: subscription.status });
 }
 
 async function handleSubscriptionCreated(subscription) {
