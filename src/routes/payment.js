@@ -306,11 +306,11 @@ async function handleCheckoutCompleted(session) {
       sessionId: session.id
     });
 
-    // Step 1: Find assessment by email
-    const { data: assessmentTokens, error: assessmentError } = await supabase
-      .from('assessment_tokens')
+    // Step 1: Find assessment by email (using assessment_sessions table)
+    const { data: assessmentSessions, error: assessmentError } = await supabase
+      .from('assessment_sessions')
       .select('*')
-      .eq('email', customerEmail)
+      .eq('user_email', customerEmail)
       .order('created_at', { ascending: false })
       .limit(1);
 
@@ -319,7 +319,7 @@ async function handleCheckoutCompleted(session) {
       // Continue - user may not have taken assessment yet
     }
 
-    const assessmentToken = assessmentTokens?.[0];
+    const assessmentSession = assessmentSessions?.[0];
 
     // Step 2: Create Supabase auth user
     const { data: authUser, error: authError } = await supabase.auth.admin.createUser({
@@ -329,7 +329,7 @@ async function handleCheckoutCompleted(session) {
         is_founding_member: true,
         payment_date: new Date().toISOString(),
         stripe_customer_id: stripeCustomerId,
-        assessment_token: assessmentToken?.token,
+        assessment_session_id: assessmentSession?.session_id,
       }
     });
 
@@ -341,21 +341,22 @@ async function handleCheckoutCompleted(session) {
     logger.info('Supabase auth user created', { userId: authUser.user.id, email: customerEmail });
 
     // Step 3: Link assessment to user (if exists)
-    if (assessmentToken) {
+    if (assessmentSession) {
       const { error: updateError } = await supabase
-        .from('assessment_tokens')
+        .from('assessment_sessions')
         .update({
           user_id: authUser.user.id,
+          status: 'linked',
           updated_at: new Date().toISOString()
         })
-        .eq('token', assessmentToken.token);
+        .eq('session_id', assessmentSession.session_id);
 
       if (updateError) {
         logger.error('Error linking assessment to user', { error: updateError });
       } else {
         logger.info('Assessment linked to user', {
           userId: authUser.user.id,
-          token: assessmentToken.token
+          sessionId: assessmentSession.session_id
         });
       }
     }
