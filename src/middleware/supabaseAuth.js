@@ -170,6 +170,13 @@ export const authenticateSupabaseJWT = async (req, res, next) => {
     }
 
     // Map Supabase user to backend auth format
+    req.user = {
+      id: user.id,
+      email: user.email,
+      customerId: user.id,
+      user_metadata: user.user_metadata
+    };
+
     req.auth = {
       userId: user.id,
       email: user.email,
