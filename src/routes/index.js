@@ -11,6 +11,7 @@ import webhookRoutes from './webhooks.js';
 import progressRoutes from './progress.js';
 import paymentRoutes from './payment.js';
 import adminRoutes from './admin.js';
+import analyticsRoutes from './analytics.js';
 import testRoutes from './testRoutes.js';
 import aiPersonaRoutes from './aiPersonaRoutes.js';
 import aiRatingRoutes from './aiRatingRoutes.js';
@@ -77,6 +78,9 @@ router.use('/api/payment', paymentRoutes);
 
 // Admin routes (admin-only access for geter@humusnshore.org)
 router.use('/api/admin', adminRoutes);
+
+// Analytics routes (public page tracking + session linking)
+router.use('/api/analytics', analyticsRoutes);
 
 // AI Persona routes (AI-powered buyer persona generation)
 router.use('/api/ai', aiPersonaRoutes);
@@ -376,6 +380,11 @@ router.get('/api/docs', (req, res) => {
           'POST /api/auth/api-key': 'Generate API key',
           'GET /api/auth/permissions': 'Get customer permissions',
           'GET /api/auth/status': 'Authentication service status'
+        },
+        analytics: {
+          'POST /api/analytics/public-page-view': 'Track anonymous page views (no auth)',
+          'POST /api/analytics/public-cta-click': 'Track CTA clicks on public pages (no auth)',
+          'POST /api/analytics/link-anonymous-session': 'Link anonymous session to user after signup (requires auth)'
         },
         demo: {
           'POST /api/demo/generate-icp': 'Generate demo ICP analysis (no auth, 3 per 24h)',
