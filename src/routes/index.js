@@ -10,6 +10,7 @@ import authRoutes from './auth.js';
 import webhookRoutes from './webhooks.js';
 import progressRoutes from './progress.js';
 import paymentRoutes from './payment.js';
+import adminRoutes from './admin.js';
 import testRoutes from './testRoutes.js';
 import aiPersonaRoutes from './aiPersonaRoutes.js';
 import aiRatingRoutes from './aiRatingRoutes.js';
@@ -73,6 +74,9 @@ router.use('/api/progress', progressRoutes);
 
 // Payment routes (Stripe integration)
 router.use('/api/payment', paymentRoutes);
+
+// Admin routes (admin-only access for geter@humusnshore.org)
+router.use('/api/admin', adminRoutes);
 
 // AI Persona routes (AI-powered buyer persona generation)
 router.use('/api/ai', aiPersonaRoutes);
