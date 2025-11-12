@@ -370,7 +370,7 @@ async function handleCheckoutCompleted(session) {
         status: 'completed',
         completed_at: new Date().toISOString(),
         is_founding_member: true,
-        has_early_access: true,
+        has_early_access: false, // Access granted on December 1, 2025
         access_granted_date: PLATFORM_ACCESS_GRANT_DATE.toISOString(),
         forever_lock_price: FOUNDING_MEMBER_FOREVER_LOCK_PRICE,
         stripe_customer_id: stripeCustomerId,
