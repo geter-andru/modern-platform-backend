@@ -9,8 +9,8 @@ import logger from '../utils/logger.js';
  * This allows frontend Supabase users to access backend APIs
  */
 export const authenticateSupabaseJWT = async (req, res, next) => {
-  // TEST ENVIRONMENT BYPASS: Accept any Bearer token in test/development environment
-  if (process.env.NODE_ENV === 'test' || process.env.NODE_ENV === 'development') {
+  // DEVELOPMENT ENVIRONMENT: Validate Supabase JWT with relaxed error handling
+  if (process.env.NODE_ENV === 'development') {
     const authHeader = req.headers.authorization;
 
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -21,24 +21,83 @@ export const authenticateSupabaseJWT = async (req, res, next) => {
       });
     }
 
-    // SECURITY FIX: Extract customer ID from the Bearer token, not from URL path
-    // This ensures test authorization matches production behavior
     const token = authHeader.substring(7); // Remove 'Bearer ' prefix
 
-    let customerId = 'CUST_001'; // fallback
+    try {
+      // Validate the Supabase JWT token (even in development)
+      const supabase = createClient(
+        config.supabase.url,
+        config.supabase.serviceRoleKey,
+        {
+          auth: {
+            autoRefreshToken: false,
+            persistSession: false
+          }
+        }
+      );
 
-    // Decode the JWT to get the actual customerId (test environment uses platform JWTs)
+      const { data: { user }, error } = await supabase.auth.getUser(token);
+
+      if (error || !user) {
+        logger.warn(`Development JWT validation failed: ${error?.message || 'No user'}`);
+        return res.status(401).json({
+          success: false,
+          error: 'Invalid Supabase JWT token',
+          details: error?.message || 'No user found'
+        });
+      }
+
+      // Use real user data from Supabase JWT
+      req.user = {
+        id: user.id,
+        email: user.email,
+        customerId: user.id,
+        user_metadata: user.user_metadata
+      };
+
+      req.auth = {
+        customerId: user.id,
+        userId: user.id,
+        email: user.email,
+        method: 'supabase-jwt-dev'
+      };
+
+      logger.info(`Development Supabase JWT authenticated for user ${user.id} (${user.email})`);
+      return next();
+
+    } catch (err) {
+      logger.error(`Development JWT authentication error: ${err.message}`);
+      return res.status(500).json({
+        success: false,
+        error: 'Authentication service error',
+        details: err.message
+      });
+    }
+  }
+
+  // TEST ENVIRONMENT BYPASS: Accept any Bearer token in test environment only
+  if (process.env.NODE_ENV === 'test') {
+    const authHeader = req.headers.authorization;
+
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({
+        success: false,
+        error: 'Missing or invalid authorization header',
+        details: 'Expected format: Authorization: Bearer <token>'
+      });
+    }
+
+    const token = authHeader.substring(7);
     const decoded = jwt.decode(token);
 
-    // Use customerId from token if available
+    let customerId = 'CUST_001';
     if (decoded && decoded.customerId) {
       customerId = decoded.customerId;
     } else if (decoded && decoded.sub) {
-      // Fallback to 'sub' claim if customerId not present
       customerId = decoded.sub;
     }
 
-    // Create mock user for testing with customer ID from TOKEN
+    // Create mock user for automated testing only
     req.user = {
       id: customerId,
       email: `test-${customerId}@example.com`,
