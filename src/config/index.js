@@ -9,10 +9,11 @@ const configLogger = winston.createLogger({
 });
 
 // Load environment-specific .env file
+// IMPORTANT: override: true forces .env to override shell environment variables
 if (process.env.NODE_ENV === 'test') {
-  dotenv.config({ path: '.env.test' });
+  dotenv.config({ path: '.env.test', override: true });
 } else {
-  dotenv.config();
+  dotenv.config({ override: true });
 }
 
 const config = {

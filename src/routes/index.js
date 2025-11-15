@@ -19,6 +19,7 @@ import jobRoutes from './jobRoutes.js';
 import brandExtractionRoutes from './brandExtractionRoutes.js';
 import productExtractionRoutes from './productExtractionRoutes.js';
 import demoRoutes from './demoRoutes.js';
+import leadingIndicatorsRoutes from './leadingIndicators.js';
 import { validate, paramSchemas, costCalculationSchema, costCalculationSaveSchema, costCalculationCompareSchema, businessCaseSchema, businessCaseExportSchema, exportFormatSchema, comprehensiveExportSchema } from '../middleware/validation.js';
 import { strictRateLimiter } from '../middleware/security.js';
 import { authenticateMulti, requireCustomerContext, customerRateLimit } from '../middleware/auth.js';
@@ -66,6 +67,9 @@ router.get('/api/beta-signup/spots-remaining',
 
 // Demo routes (public - no authentication required)
 router.use('/api/demo', demoRoutes);
+
+// Leading Indicators routes (requires auth - predictive dashboard-v3)
+router.use('/api/leading-indicators', leadingIndicatorsRoutes);
 
 // Webhook routes (mixed auth)
 router.use('/api/webhooks', webhookRoutes);

@@ -93,18 +93,17 @@ const demoRateLimiter = process.env.NODE_ENV === 'test'
  * Request body:
  * {
  *   productName: string (required, 2-100 chars) - Product name
- *   description: string (required, 10-500 chars) - Product description
- *   businessModel: string (required) - "b2b-subscription" | "b2b-one-time"
+ *   productDescription: string (required, 10-500 chars) - What the product does
+ *   targetBuyer: string (optional) - Optional target buyer hint
  * }
  *
  * Response:
  * {
  *   success: true,
  *   demo: true,
- *   personas: [...], // 3 personas
- *   icp: { ... },
- *   product: { ... },
- *   metadata: { generationTimeMs, tokensUsed, cost }
+ *   personas: [...], // 5 personas with narrative format
+ *   product: { productName, productDescription, targetBuyer },
+ *   metadata: { generationTimeMs, model, personaCount, ... }
  * }
  *
  * Error responses:
