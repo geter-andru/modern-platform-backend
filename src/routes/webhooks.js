@@ -204,11 +204,11 @@ router.post('/notifications/assessment-started',
         userEmail: req.body.user_email
       });
 
-      // Validate required fields
-      if (!req.body.id || !req.body.session_id || !req.body.user_email) {
+      // Validate required fields (user_email is optional at start, collected later)
+      if (!req.body.id || !req.body.session_id) {
         logger.warn('⚠️  Invalid assessment started webhook payload', { body: req.body });
         return res.status(400).json({
-          error: 'Missing required fields (id, session_id, user_email)'
+          error: 'Missing required fields (id, session_id)'
         });
       }
 

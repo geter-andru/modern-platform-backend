@@ -370,7 +370,7 @@ export function assessmentStartedEmailTemplate(data) {
       : 'Beginning assessment';
 
   return {
-    subject: `🚀 Assessment Started: ${companyName || userEmail}`,
+    subject: `🚀 Assessment Started: ${companyName || userEmail || `Session ${sessionId.substring(0, 8)}`}`,
     html: `
       <!DOCTYPE html>
       <html>
@@ -478,10 +478,12 @@ export function assessmentStartedEmailTemplate(data) {
               ⏳ In Progress - User is currently taking the assessment
             </div>
 
+            ${userEmail ? `
             <div class="detail-row">
               <div class="detail-label">Email Address</div>
               <div class="detail-value">${userEmail}</div>
             </div>
+            ` : ''}
 
             ${companyName ? `
             <div class="detail-row">
