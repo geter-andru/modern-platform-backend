@@ -13,6 +13,7 @@ import { createClient } from '@supabase/supabase-js';
 import { SimpleWorker } from '../lib/simpleQueue.js';
 import { getRatingQueue, getBatchRatingQueue } from '../lib/queue.js';
 import logger from '../utils/logger.js';
+import { recordAIMetric } from '../middleware/performanceMonitoring.js';
 
 // Initialize Anthropic client
 const anthropic = new Anthropic({
@@ -191,6 +192,27 @@ SCORING GUIDE:
 
   const apiDuration = Date.now() - startTime;
   logger.info(`[RatingWorker] Claude API responded in ${apiDuration}ms`);
+
+  // ===== EXTRACT TOKEN USAGE =====
+  const usage = response.usage;
+  const estimatedCost = calculateCost(
+    usage.input_tokens,
+    usage.output_tokens,
+    'claude-3-5-sonnet-20241022'
+  );
+
+  // Record AI metric with token tracking
+  recordAIMetric({
+    operation: 'rateCompany_worker',
+    duration: apiDuration,
+    success: true,
+    customerId: jobData.userId,
+    inputTokens: usage.input_tokens,
+    outputTokens: usage.output_tokens,
+    totalTokens: usage.input_tokens + usage.output_tokens,
+    estimatedCost: estimatedCost,
+    model: 'claude-3-5-sonnet-20241022'
+  });
 
   // Parse AI response
   const responseText = response.content[0].text;
@@ -442,3 +464,29 @@ export default {
   startBatchRatingWorker,
   rateSingleCompany,
 };
+
+/**
+ * Calculate cost in USD based on token usage
+ * Model pricing per 1M tokens:
+ * - Claude 3 Opus: $15 input / $75 output
+ * - Claude 3.5 Sonnet: $3 input / $15 output
+ * - Claude 3.5 Haiku: $0.25 input / $1.25 output
+ */
+function calculateCost(inputTokens, outputTokens, model) {
+  const pricing = {
+    'claude-3-opus-20240229': { input: 15, output: 75 },
+    'claude-3-5-sonnet-20241022': { input: 3, output: 15 },
+    'claude-3-5-haiku-20241022': { input: 0.25, output: 1.25 }
+  };
+
+  const modelPricing = pricing[model];
+  if (!modelPricing) {
+    logger.warn(`Unknown model pricing: ${model}, using Sonnet as fallback`);
+    return calculateCost(inputTokens, outputTokens, 'claude-3-5-sonnet-20241022');
+  }
+
+  const inputCost = (inputTokens / 1_000_000) * modelPricing.input;
+  const outputCost = (outputTokens / 1_000_000) * modelPricing.output;
+
+  return parseFloat((inputCost + outputCost).toFixed(6));
+}
