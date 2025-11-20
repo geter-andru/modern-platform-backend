@@ -1,12 +1,16 @@
+import Anthropic from '@anthropic-ai/sdk';
 import logger from '../utils/logger.js';
+import { recordAIMetric } from '../middleware/performanceMonitoring.js';
 
 /**
  * Lightweight ICP generation service for public demo page
- * Stripped-down version of aiService.js - no auth, tracking, or complex features
+ * Now includes token tracking for cost monitoring
  */
 class DemoICPService {
   constructor() {
-    this.anthropicApiKey = process.env.ANTHROPIC_API_KEY;
+    this.anthropic = new Anthropic({
+      apiKey: process.env.ANTHROPIC_API_KEY
+    });
   }
 
   /**
@@ -36,10 +40,30 @@ class DemoICPService {
         temperature: 0.8 // Higher creativity for diverse personas
       });
 
-      const personasData = this.parsePersonasResponse(aiResponse);
+      const personasData = this.parsePersonasResponse(aiResponse.text);
 
       const duration = Date.now() - startTime;
       logger.info(`✅ Generated ${personasData.personas.length} personas in ${duration}ms`);
+
+      // Calculate cost
+      const estimatedCost = this.calculateCost(
+        aiResponse.usage.inputTokens,
+        aiResponse.usage.outputTokens,
+        'claude-3-5-haiku-20241022'
+      );
+
+      // Record AI metric with token tracking (no user ID for public demo)
+      recordAIMetric({
+        operation: 'demoICPGeneration',
+        duration,
+        success: true,
+        customerId: null, // Public demo - no user ID
+        inputTokens: aiResponse.usage.inputTokens,
+        outputTokens: aiResponse.usage.outputTokens,
+        totalTokens: aiResponse.usage.totalTokens,
+        estimatedCost: estimatedCost,
+        model: 'claude-3-5-haiku-20241022'
+      });
 
       return {
         success: true,
@@ -172,42 +196,33 @@ Generate the complete intelligence extraction now (Steps 1A, 1B, and EXACTLY 2 p
   }
 
   /**
-   * Call Anthropic Claude API
+   * Call Anthropic Claude API using SDK
    */
   async callAnthropicAPI(prompt, options = {}) {
-    if (!this.anthropicApiKey) {
-      throw new Error('Anthropic API key not configured');
-    }
-
     const modelToUse = options.model || 'claude-3-5-haiku-20241022';
 
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-API-Key': this.anthropicApiKey,
-        'Anthropic-Version': '2023-06-01'
-      },
-      body: JSON.stringify({
-        model: modelToUse,
-        max_tokens: options.max_tokens || 3000,
-        temperature: options.temperature || 0.8,
-        messages: [
-          {
-            role: 'user',
-            content: prompt
-          }
-        ]
-      })
+    const response = await this.anthropic.messages.create({
+      model: modelToUse,
+      max_tokens: options.max_tokens || 3000,
+      temperature: options.temperature || 0.8,
+      messages: [
+        {
+          role: 'user',
+          content: prompt
+        }
+      ]
     });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Anthropic API error: ${response.status} ${response.statusText} - ${errorText}`);
-    }
-
-    const result = await response.json();
-    return result.content[0].text;
+    // Return text and usage data
+    return {
+      text: response.content[0].text,
+      usage: {
+        inputTokens: response.usage.input_tokens || 0,
+        outputTokens: response.usage.output_tokens || 0,
+        totalTokens: (response.usage.input_tokens || 0) + (response.usage.output_tokens || 0)
+      },
+      model: modelToUse
+    };
   }
 
   /**
@@ -341,6 +356,32 @@ Generate the complete intelligence extraction now (Steps 1A, 1B, and EXACTLY 2 p
         }
       ]
     };
+  }
+
+  /**
+   * Calculate cost in USD based on token usage
+   * Model pricing per 1M tokens:
+   * - Claude 3 Opus: $15 input / $75 output
+   * - Claude 3.5 Sonnet: $3 input / $15 output
+   * - Claude 3.5 Haiku: $0.25 input / $1.25 output
+   */
+  calculateCost(inputTokens, outputTokens, model) {
+    const pricing = {
+      'claude-3-opus-20240229': { input: 15, output: 75 },
+      'claude-3-5-sonnet-20241022': { input: 3, output: 15 },
+      'claude-3-5-haiku-20241022': { input: 0.25, output: 1.25 }
+    };
+
+    const modelPricing = pricing[model];
+    if (!modelPricing) {
+      logger.warn(`Unknown model pricing: ${model}, using Haiku as fallback`);
+      return this.calculateCost(inputTokens, outputTokens, 'claude-3-5-haiku-20241022');
+    }
+
+    const inputCost = (inputTokens / 1_000_000) * modelPricing.input;
+    const outputCost = (outputTokens / 1_000_000) * modelPricing.output;
+
+    return parseFloat((inputCost + outputCost).toFixed(6));
   }
 }
 

@@ -1,3 +1,4 @@
+import Anthropic from '@anthropic-ai/sdk';
 import logger from '../utils/logger.js';
 import { recordAIMetric, retryOperation } from '../middleware/performanceMonitoring.js';
 
@@ -12,7 +13,9 @@ import { recordAIMetric, retryOperation } from '../middleware/performanceMonitor
  */
 class ProspectDiscoveryService {
   constructor() {
-    this.anthropicApiKey = process.env.ANTHROPIC_API_KEY;
+    this.anthropic = new Anthropic({
+      apiKey: process.env.ANTHROPIC_API_KEY
+    });
   }
 
   /**
@@ -54,18 +57,30 @@ class ProspectDiscoveryService {
         }
       );
 
-      const prospects = this.parseProspectsResponse(aiResponse);
+      const prospects = this.parseProspectsResponse(aiResponse.text);
 
       const duration = Date.now() - startTime;
       logger.info(`✅ Discovered ${prospects.prospects.length} prospects in ${duration}ms`);
 
-      // Record successful AI call metric
+      // Calculate cost
+      const estimatedCost = this.calculateCost(
+        aiResponse.usage.inputTokens,
+        aiResponse.usage.outputTokens,
+        'claude-3-5-haiku-20241022'
+      );
+
+      // Record successful AI call metric with token tracking
       recordAIMetric({
         operation: 'prospectDiscovery',
         duration,
         success: true,
         customerId: userId,
-        resultsCount: prospects.prospects.length
+        resultsCount: prospects.prospects.length,
+        inputTokens: aiResponse.usage.inputTokens,
+        outputTokens: aiResponse.usage.outputTokens,
+        totalTokens: aiResponse.usage.totalTokens,
+        estimatedCost: estimatedCost,
+        model: 'claude-3-5-haiku-20241022'
       });
 
       return {
@@ -261,60 +276,50 @@ Begin your comprehensive web search and prospect discovery now. Return ONLY the 
   }
 
   /**
-   * Call Anthropic Claude API with web search enabled
+   * Call Anthropic Claude API with web search enabled using SDK
    */
   async callAnthropicAPIWithWebSearch(prompt, options = {}) {
-    if (!this.anthropicApiKey) {
-      throw new Error('Anthropic API key not configured');
-    }
-
     const modelToUse = options.model || 'claude-3-5-haiku-20241022';
     logger.info(`🤖 Calling Anthropic API with web search: ${modelToUse}`);
 
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-API-Key': this.anthropicApiKey,
-        'Anthropic-Version': '2023-06-01'
-      },
-      body: JSON.stringify({
-        model: modelToUse,
-        max_tokens: options.max_tokens || 4000,
-        temperature: options.temperature || 0.6,
-        messages: [
-          {
-            role: 'user',
-            content: prompt
-          }
-        ],
-        // Enable web search tool
-        tools: [
-          {
-            type: 'web_search_20250305',
-            name: 'web_search',
-            max_uses: options.max_searches || 10
-          }
-        ]
-      })
+    const response = await this.anthropic.messages.create({
+      model: modelToUse,
+      max_tokens: options.max_tokens || 4000,
+      temperature: options.temperature || 0.6,
+      messages: [
+        {
+          role: 'user',
+          content: prompt
+        }
+      ],
+      // Enable web search tool
+      tools: [
+        {
+          type: 'web_search_20250305',
+          name: 'web_search',
+          max_uses: options.max_searches || 10
+        }
+      ]
     });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Anthropic API error: ${response.status} ${response.statusText} - ${errorText}`);
-    }
-
-    const result = await response.json();
 
     // Extract text content from response (web search results are embedded)
     let fullText = '';
-    for (const content of result.content) {
+    for (const content of response.content) {
       if (content.type === 'text') {
         fullText += content.text;
       }
     }
 
-    return fullText;
+    // Return text and usage data
+    return {
+      text: fullText,
+      usage: {
+        inputTokens: response.usage.input_tokens || 0,
+        outputTokens: response.usage.output_tokens || 0,
+        totalTokens: (response.usage.input_tokens || 0) + (response.usage.output_tokens || 0)
+      },
+      model: modelToUse
+    };
   }
 
   /**
@@ -394,6 +399,32 @@ Begin your comprehensive web search and prospect discovery now. Return ONLY the 
         queriesUsed: 0
       }
     };
+  }
+
+  /**
+   * Calculate cost in USD based on token usage
+   * Model pricing per 1M tokens:
+   * - Claude 3 Opus: $15 input / $75 output
+   * - Claude 3.5 Sonnet: $3 input / $15 output
+   * - Claude 3.5 Haiku: $0.25 input / $1.25 output
+   */
+  calculateCost(inputTokens, outputTokens, model) {
+    const pricing = {
+      'claude-3-opus-20240229': { input: 15, output: 75 },
+      'claude-3-5-sonnet-20241022': { input: 3, output: 15 },
+      'claude-3-5-haiku-20241022': { input: 0.25, output: 1.25 }
+    };
+
+    const modelPricing = pricing[model];
+    if (!modelPricing) {
+      logger.warn(`Unknown model pricing: ${model}, using Haiku as fallback`);
+      return this.calculateCost(inputTokens, outputTokens, 'claude-3-5-haiku-20241022');
+    }
+
+    const inputCost = (inputTokens / 1_000_000) * modelPricing.input;
+    const outputCost = (outputTokens / 1_000_000) * modelPricing.output;
+
+    return parseFloat((inputCost + outputCost).toFixed(6));
   }
 }
 
