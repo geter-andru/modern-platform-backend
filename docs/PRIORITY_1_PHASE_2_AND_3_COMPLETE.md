@@ -347,10 +347,18 @@ _formatPromptContext(tier1, tier2, tier3, empathyPromptSection = '') {
 **Empathy-Driven, Emotionally Resonant Content**:
 ```
 "The Reality You're Facing: You wake up at 3 AM terrified you'll have to lay off
-your team because you can't translate your technical superiority into CFO-friendly
-language. With 14 months runway and Series A required in 90 days, every lost
-enterprise deal brings you closer to that nightmare."
+your team. You're 14 months from running out of runway, Series A conversations
+start in 90 days, and you can't get past the CFO in enterprise deals. The problem
+isn't your product—it's that you can't translate your technical superiority into
+language that makes CFOs write checks. Every lost deal brings you closer to the
+nightmare of team layoffs."
 ```
+
+**Structure**:
+1. **Core Worry** (the consequence): "Terrified about team layoffs"
+2. **Critical Need Context** (urgency): "14 months runway, Series A in 90 days"
+3. **Capability Gap** (what's blocking relief): "Can't translate technical to CFO language"
+4. **Impact**: "Every lost deal brings you closer to the nightmare"
 
 ### Expected Business Impact
 - **User Engagement**: ↑ 300% (emotionally resonant content)

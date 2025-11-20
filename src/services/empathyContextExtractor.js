@@ -264,24 +264,35 @@ class EmpathyContextExtractor {
 
     // Add generation guidance
     promptSection += `### EMPATHY-DRIVEN GENERATION REQUIREMENTS\n\n`;
+    promptSection += `**CRITICAL DISTINCTION**: Core Worry = The CONSEQUENCE they fear (e.g., "team layoffs", "board replacement"). NOT the capability gap that's blocking relief.\n\n`;
     promptSection += `You MUST generate content that:\n\n`;
 
     if (combinedContext.empathy) {
-      promptSection += `1. **Addresses Core Worry**: Connect directly to "${combinedContext.empathy.coreWorry.substring(0, 60)}..."\n`;
-      promptSection += `2. **Provides Emotional Relief**: Show how this solution lifts the burden (use "I stop..." language)\n`;
+      promptSection += `1. **Addresses Core Worry (the CONSEQUENCE they fear)**: Connect directly to "${combinedContext.empathy.coreWorry.substring(0, 80)}..."\n`;
+      promptSection += `   - Lead with the nightmare scenario (team layoffs, board replacement, company failure)\n`;
+      promptSection += `   - Then explain what's blocking relief (capability gaps, resource constraints)\n\n`;
+
+      promptSection += `2. **Provides Emotional Relief**: Show how this solution removes the CONSEQUENCE fear\n`;
+      promptSection += `   - Use "I stop..." language: "I stop waking up terrified about [CORE WORRY]"\n`;
+      promptSection += `   - NOT "I stop struggling with [capability gap]"\n\n`;
 
       if (combinedContext.empathy.hiddenAmbition) {
         promptSection += `3. **Articulates Career Win**: Tie to hidden ambition: "${combinedContext.empathy.hiddenAmbition}"\n`;
+        promptSection += `   - What they achieve AFTER the Core Worry is resolved\n\n`;
       }
     }
 
     if (combinedContext.criticalNeed && combinedContext.criticalNeed.primaryMetric) {
       promptSection += `4. **Maps to Critical Timeline**: Connect to ${combinedContext.criticalNeed.primaryMetric.deadline} deadline for "${combinedContext.criticalNeed.primaryMetric.metric}"\n`;
+      promptSection += `   - Show how time pressure amplifies the Core Worry\n\n`;
+
       promptSection += `5. **Shows Survival Impact**: Explain how this affects runway/funding: "${combinedContext.criticalNeed.primaryMetric.impact}"\n`;
+      promptSection += `   - Every day/deal/decision brings them closer to or further from the nightmare\n\n`;
     }
 
-    promptSection += `\n**Tone**: Empathetic, urgent (survival timeline), career-focused\n`;
-    promptSection += `**Avoid**: Generic pain points, jargon, feature lists without emotional context\n\n`;
+    promptSection += `**Structure**: 1) Core Worry (consequence) 2) Critical Need Context (urgency) 3) Capability Gap (blocker) 4) Solution (removes worry)\n`;
+    promptSection += `**Tone**: Empathetic, urgent (survival timeline), consequence-focused, career-oriented\n`;
+    promptSection += `**Avoid**: Leading with capability gaps, generic pain points, jargon, feature lists without emotional context\n\n`;
 
     return promptSection;
   }

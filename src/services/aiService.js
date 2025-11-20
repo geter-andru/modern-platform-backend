@@ -31,16 +31,24 @@ class AIService {
         }
       );
 
-      const icpAnalysis = this.parseICPResponse(aiResponse);
+      const icpAnalysis = this.parseICPResponse(aiResponse.text);
 
       logger.info(`Generated ICP analysis for customer ${customerData.customerId}`);
 
-      // Record successful AI call metric
+      // Calculate estimated cost
+      const estimatedCost = this.calculateCost(aiResponse.usage, aiResponse.model);
+
+      // Record successful AI call metric with token usage
       recordAIMetric({
         operation: 'generateICP',
         duration: Date.now() - startTime,
         success: true,
-        customerId: customerData.customerId
+        customerId: customerData.customerId,
+        inputTokens: aiResponse.usage.inputTokens,
+        outputTokens: aiResponse.usage.outputTokens,
+        totalTokens: aiResponse.usage.totalTokens,
+        estimatedCost: estimatedCost,
+        model: aiResponse.model
       });
 
       return {
@@ -123,16 +131,24 @@ class AIService {
         }
       );
 
-      const icpAnalysis = this.parseICPResponse(aiResponse);
+      const icpAnalysis = this.parseICPResponse(aiResponse.text);
 
       logger.info(`Streaming ICP generation completed for customer ${customerData.customerId}`);
 
-      // Record successful streaming AI call metric
+      // Calculate estimated cost
+      const estimatedCost = this.calculateCost(aiResponse.usage, aiResponse.model);
+
+      // Record successful streaming AI call metric with token usage
       recordAIMetric({
         operation: 'generateICPStreaming',
         duration: Date.now() - startTime,
         success: true,
-        customerId: customerData.customerId
+        customerId: customerData.customerId,
+        inputTokens: aiResponse.usage.inputTokens,
+        outputTokens: aiResponse.usage.outputTokens,
+        totalTokens: aiResponse.usage.totalTokens,
+        estimatedCost: estimatedCost,
+        model: aiResponse.model
       });
 
       return {
@@ -190,16 +206,24 @@ class AIService {
         }
       );
 
-      const costAnalysis = this.parseCostCalculationResponse(aiResponse, inputData);
+      const costAnalysis = this.parseCostCalculationResponse(aiResponse.text, inputData);
 
       logger.info(`Generated cost calculation for customer ${customerData.customerId}`);
 
-      // Record successful AI call metric
+      // Calculate estimated cost
+      const estimatedCost = this.calculateCost(aiResponse.usage, aiResponse.model);
+
+      // Record successful AI call metric with token usage
       recordAIMetric({
         operation: 'generateCostCalculation',
         duration: Date.now() - startTime,
         success: true,
-        customerId: customerData.customerId
+        customerId: customerData.customerId,
+        inputTokens: aiResponse.usage.inputTokens,
+        outputTokens: aiResponse.usage.outputTokens,
+        totalTokens: aiResponse.usage.totalTokens,
+        estimatedCost: estimatedCost,
+        model: aiResponse.model
       });
 
       return {
@@ -256,16 +280,24 @@ class AIService {
         }
       );
 
-      const businessCase = this.parseBusinessCaseResponse(aiResponse);
+      const businessCase = this.parseBusinessCaseResponse(aiResponse.text);
 
       logger.info(`Generated business case for customer ${customerData.customerId}`);
 
-      // Record successful AI call metric
+      // Calculate estimated cost
+      const estimatedCost = this.calculateCost(aiResponse.usage, aiResponse.model);
+
+      // Record successful AI call metric with token usage
       recordAIMetric({
         operation: 'generateBusinessCase',
         duration: Date.now() - startTime,
         success: true,
-        customerId: customerData.customerId
+        customerId: customerData.customerId,
+        inputTokens: aiResponse.usage.inputTokens,
+        outputTokens: aiResponse.usage.outputTokens,
+        totalTokens: aiResponse.usage.totalTokens,
+        estimatedCost: estimatedCost,
+        model: aiResponse.model
       });
 
       return {
@@ -500,7 +532,21 @@ Format as JSON:
     }
 
     const result = await response.json();
-    return result.content[0].text;
+
+    // Extract token usage data from response
+    const usage = result.usage || {};
+    const responseText = result.content[0].text;
+
+    // Return both text and usage data
+    return {
+      text: responseText,
+      usage: {
+        inputTokens: usage.input_tokens || 0,
+        outputTokens: usage.output_tokens || 0,
+        totalTokens: (usage.input_tokens || 0) + (usage.output_tokens || 0)
+      },
+      model: modelToUse
+    };
   }
 
   /**
@@ -546,6 +592,8 @@ Format as JSON:
     // Process the streaming response
     let fullText = '';
     let bytesReceived = 0;
+    let inputTokens = 0;
+    let outputTokens = 0;
     const estimatedTotalBytes = (options.max_tokens || 2000) * 4; // Rough estimate: 4 bytes per token
 
     const reader = response.body.getReader();
@@ -582,6 +630,16 @@ Format as JSON:
                   onProgress(progress, parsed.delta.text);
                 }
               }
+
+              // Capture usage data from message_delta event
+              if (parsed.type === 'message_delta' && parsed.usage) {
+                outputTokens = parsed.usage.output_tokens || 0;
+              }
+
+              // Capture usage data from message_start event
+              if (parsed.type === 'message_start' && parsed.message?.usage) {
+                inputTokens = parsed.message.usage.input_tokens || 0;
+              }
             } catch (e) {
               // Skip unparseable lines
             }
@@ -595,7 +653,17 @@ Format as JSON:
       }
 
       logger.info(`🤖 Streaming complete: ${fullText.length} characters received`);
-      return fullText;
+
+      // Return text and usage data
+      return {
+        text: fullText,
+        usage: {
+          inputTokens: inputTokens,
+          outputTokens: outputTokens,
+          totalTokens: inputTokens + outputTokens
+        },
+        model: modelToUse
+      };
     } finally {
       reader.releaseLock();
     }
@@ -717,6 +785,29 @@ Format as JSON:
         }
       ]
     };
+  }
+
+  /**
+   * Calculate cost of API call based on token usage
+   * Pricing as of November 2025
+   */
+  calculateCost(usage, model) {
+    const { inputTokens, outputTokens } = usage;
+
+    // Pricing per 1M tokens (in dollars)
+    const pricing = {
+      'claude-3-opus-20240229': { input: 15, output: 75 },
+      'claude-3-5-sonnet-20241022': { input: 3, output: 15 },
+      'claude-3-5-haiku-20241022': { input: 0.25, output: 1.25 }
+    };
+
+    const modelPricing = pricing[model] || pricing['claude-3-opus-20240229'];
+
+    const inputCost = (inputTokens / 1000000) * modelPricing.input;
+    const outputCost = (outputTokens / 1000000) * modelPricing.output;
+    const totalCost = inputCost + outputCost;
+
+    return parseFloat(totalCost.toFixed(6)); // Return cost in dollars (6 decimal precision)
   }
 
   /**

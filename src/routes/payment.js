@@ -361,7 +361,26 @@ async function handleCheckoutCompleted(session) {
       }
     }
 
-    // Step 4: Create user_milestone: 'waitlist_paid'
+    // Step 4: Calculate founding member number (sequential)
+    const { data: existingMembers, error: countError } = await supabase
+      .from('user_milestones')
+      .select('id', { count: 'exact' })
+      .eq('is_founding_member', true)
+      .eq('milestone_type', 'waitlist_paid');
+
+    if (countError) {
+      logger.error('Error counting existing founding members', { error: countError });
+    }
+
+    const foundingMemberNumber = (existingMembers?.length || 0) + 1;
+
+    logger.info('Assigning founding member number', {
+      number: foundingMemberNumber,
+      userId: authUser.user.id,
+      email: customerEmail
+    });
+
+    // Step 5: Create user_milestone: 'waitlist_paid'
     const { error: milestoneError } = await supabase
       .from('user_milestones')
       .insert({
@@ -380,6 +399,7 @@ async function handleCheckoutCompleted(session) {
           payment_amount: session.amount_total / 100, // Convert from cents
           payment_currency: session.currency,
           early_access_price: FOUNDING_MEMBER_EARLY_ACCESS_PRICE,
+          founding_member_number: foundingMemberNumber, // Sequential number
         }
       });
 
@@ -388,14 +408,17 @@ async function handleCheckoutCompleted(session) {
       throw milestoneError;
     }
 
-    logger.info('Milestone created: waitlist_paid', { userId: authUser.user.id });
+    logger.info('Milestone created: waitlist_paid', {
+      userId: authUser.user.id,
+      foundingMemberNumber
+    });
 
-    // Step 5: Send magic link email (Supabase handles this automatically)
+    // Step 6: Send magic link email (Supabase handles this automatically)
     const { error: magicLinkError } = await supabase.auth.admin.generateLink({
       type: 'magiclink',
       email: customerEmail,
       options: {
-        redirectTo: `${FRONTEND_URL}/waitlist-welcome`
+        redirectTo: `${FRONTEND_URL}/founding-members/welcome`
       }
     });
 

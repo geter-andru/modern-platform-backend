@@ -246,18 +246,49 @@ export const performanceMonitoring = (req, res, next) => {
 /**
  * Helper function to record AI call metrics from aiService
  *
+ * Now saves to both in-memory metrics AND Supabase database for persistent tracking.
+ *
  * Usage in aiService.js:
  *   import { recordAIMetric } from '../middleware/performanceMonitoring.js';
  *   const startTime = Date.now();
  *   try {
  *     const result = await this.callAnthropicAPI(...);
- *     recordAIMetric({ operation: 'generateICP', duration: Date.now() - startTime, success: true });
+ *     recordAIMetric({
+ *       operation: 'generateICP',
+ *       duration: Date.now() - startTime,
+ *       success: true,
+ *       customerId: 'user-123',
+ *       inputTokens: 800,
+ *       outputTokens: 1800,
+ *       estimatedCost: 0.147,
+ *       model: 'claude-3-opus-20240229'
+ *     });
  *   } catch (error) {
- *     recordAIMetric({ operation: 'generateICP', duration: Date.now() - startTime, success: false, error: error.message });
+ *     recordAIMetric({
+ *       operation: 'generateICP',
+ *       duration: Date.now() - startTime,
+ *       success: false,
+ *       error: error.message,
+ *       customerId: 'user-123'
+ *     });
  *   }
  */
-export const recordAIMetric = (metric) => {
+export const recordAIMetric = async (metric) => {
+  // Record in-memory for immediate access
   performanceMetrics.recordAICall(metric);
+
+  // Persist to database for long-term tracking (async, non-blocking)
+  // Import dynamically to avoid circular dependencies
+  try {
+    const { default: aiCostTrackingService } = await import('../services/aiCostTrackingService.js');
+    await aiCostTrackingService.recordMetric(metric);
+  } catch (error) {
+    logger.error('[PerformanceMonitoring] Failed to persist AI metric to database', {
+      error: error.message,
+      operation: metric.operation
+    });
+    // Don't throw - metric is already recorded in-memory
+  }
 };
 
 /**

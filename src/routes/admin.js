@@ -2,6 +2,7 @@ import express from 'express';
 import { authenticateSupabaseJWT } from '../middleware/supabaseAuth.js';
 import logger from '../utils/logger.js';
 import supabase from '../services/supabaseService.js';
+import aiCostTrackingService from '../services/aiCostTrackingService.js';
 
 const router = express.Router();
 
@@ -885,6 +886,301 @@ router.get('/funnel-analytics', authenticateSupabaseJWT, requireAdmin, async (re
 });
 
 /**
+ * GET /api/admin/founding-member/:userId
+ * Get founding member data for a specific user (non-admin endpoint)
+ *
+ * Authentication: Required (Supabase JWT)
+ * Authorization: Users can only fetch their own data
+ *
+ * Response:
+ * - founding_member_number: Unique sequential number
+ * - is_founding_member: Boolean
+ * - has_early_access: Boolean
+ * - access_granted_date: ISO timestamp
+ * - forever_lock_price: Monthly price in USD
+ * - stripe_customer_id: Stripe customer ID
+ * - stripe_subscription_id: Stripe subscription ID
+ * - assessment_completed: Boolean (has linked assessment)
+ * - assessment_session_id: Assessment session ID if exists
+ */
+router.get('/founding-member/:userId', authenticateSupabaseJWT, async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const requestingUserId = req.user?.id;
+
+    logger.info('Fetching founding member data', {
+      userId,
+      requestingUserId
+    });
+
+    // Security: Users can only fetch their own data (unless admin)
+    const isAdmin = ADMIN_EMAILS.includes(req.user?.email);
+    if (!isAdmin && userId !== requestingUserId) {
+      logger.warn('Unauthorized founding member data access attempt', {
+        userId,
+        requestingUserId,
+        email: req.user?.email
+      });
+      return res.status(403).json({
+        success: false,
+        error: 'You can only access your own founding member data'
+      });
+    }
+
+    // Fetch user milestone data
+    const { data: milestone, error: milestoneError } = await supabase
+      .from('user_milestones')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('milestone_type', 'waitlist_paid')
+      .eq('is_founding_member', true)
+      .single();
+
+    if (milestoneError) {
+      // If not found, user is not a founding member
+      if (milestoneError.code === 'PGRST116') {
+        logger.info('User is not a founding member', { userId });
+        return res.json({
+          success: true,
+          data: {
+            is_founding_member: false,
+            has_early_access: false,
+            founding_member_number: null,
+            access_granted_date: null,
+            forever_lock_price: null,
+            assessment_completed: false
+          }
+        });
+      }
+
+      logger.error('Error fetching user milestone', {
+        error: milestoneError.message,
+        userId
+      });
+      throw milestoneError;
+    }
+
+    // Fetch user data to get assessment_session_id
+    const { data: authUser, error: authError } = await supabase.auth.admin.getUserById(userId);
+
+    if (authError) {
+      logger.error('Error fetching user auth data', {
+        error: authError.message,
+        userId
+      });
+      throw authError;
+    }
+
+    const assessmentSessionId = authUser?.user?.user_metadata?.assessment_session_id || null;
+
+    // Check if assessment is completed
+    let assessmentCompleted = false;
+    if (assessmentSessionId) {
+      const { data: assessment, error: assessmentError } = await supabase
+        .from('assessment_sessions')
+        .select('id')
+        .eq('session_id', assessmentSessionId)
+        .single();
+
+      if (!assessmentError && assessment) {
+        assessmentCompleted = true;
+      }
+    }
+
+    // Calculate founding member number from metadata or row order
+    const foundingMemberNumber = milestone.metadata?.founding_member_number || null;
+
+    const responseData = {
+      founding_member_number: foundingMemberNumber,
+      is_founding_member: true,
+      has_early_access: milestone.has_early_access || false,
+      access_granted_date: milestone.access_granted_date,
+      forever_lock_price: milestone.forever_lock_price || 750,
+      stripe_customer_id: milestone.stripe_customer_id,
+      stripe_subscription_id: milestone.stripe_subscription_id,
+      assessment_completed: assessmentCompleted,
+      assessment_session_id: assessmentSessionId
+    };
+
+    logger.info('Founding member data retrieved', {
+      userId,
+      is_founding_member: true,
+      assessment_completed: assessmentCompleted
+    });
+
+    return res.json({
+      success: true,
+      data: responseData
+    });
+
+  } catch (error) {
+    logger.error('Error fetching founding member data', {
+      error: error.message,
+      stack: error.stack,
+      userId: req.params.userId
+    });
+
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to fetch founding member data'
+    });
+  }
+});
+
+/**
+ * GET /api/admin/founding-member/:userId/badge
+ * Generate and download founding member badge/certificate
+ *
+ * Authentication: Required (Supabase JWT)
+ * Authorization: Users can only download their own badge (unless admin)
+ *
+ * Response: SVG image with founding member number and details
+ */
+router.get('/founding-member/:userId/badge', authenticateSupabaseJWT, async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const requestingUserId = req.user?.id;
+
+    logger.info('Generating founding member badge', {
+      userId,
+      requestingUserId
+    });
+
+    // Security: Users can only download their own badge (unless admin)
+    const isAdmin = ADMIN_EMAILS.includes(req.user?.email);
+    if (!isAdmin && userId !== requestingUserId) {
+      logger.warn('Unauthorized badge download attempt', {
+        userId,
+        requestingUserId,
+        email: req.user?.email
+      });
+      return res.status(403).json({
+        success: false,
+        error: 'You can only download your own founding member badge'
+      });
+    }
+
+    // Fetch founding member data
+    const { data: milestone, error: milestoneError } = await supabase
+      .from('user_milestones')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('milestone_type', 'waitlist_paid')
+      .eq('is_founding_member', true)
+      .single();
+
+    if (milestoneError || !milestone) {
+      logger.warn('User is not a founding member', { userId });
+      return res.status(404).json({
+        success: false,
+        error: 'Not a founding member'
+      });
+    }
+
+    // Get user email
+    const { data: authUser, error: authError } = await supabase.auth.admin.getUserById(userId);
+    if (authError) {
+      throw authError;
+    }
+
+    const foundingMemberNumber = milestone.metadata?.founding_member_number || '—';
+    const memberEmail = authUser?.user?.email || 'Member';
+    const paymentDate = new Date(milestone.completed_at).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+
+    // Generate SVG badge
+    const svg = `<?xml version="1.0" encoding="UTF-8"?>
+<svg width="800" height="600" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background gradient -->
+  <defs>
+    <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1e3a8a;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#3b82f6;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#6366f1;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="badgeGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#facc15;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#fb923c;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="800" height="600" fill="url(#bgGradient)"/>
+
+  <!-- Border -->
+  <rect x="20" y="20" width="760" height="560" fill="none" stroke="#facc15" stroke-width="3" rx="10"/>
+
+  <!-- Badge icon -->
+  <circle cx="400" cy="120" r="60" fill="url(#badgeGradient)" opacity="0.9"/>
+  <text x="400" y="135" font-family="Arial, sans-serif" font-size="48" font-weight="bold" fill="#1e3a8a" text-anchor="middle">★</text>
+
+  <!-- Title -->
+  <text x="400" y="220" font-family="Georgia, serif" font-size="48" font-weight="bold" fill="#ffffff" text-anchor="middle">
+    ANDRU BETA USER
+  </text>
+
+  <!-- Member number -->
+  <text x="400" y="280" font-family="Arial, sans-serif" font-size="72" font-weight="bold" fill="#facc15" text-anchor="middle">
+    #${foundingMemberNumber}
+  </text>
+
+  <!-- Subtitle -->
+  <text x="400" y="330" font-family="Arial, sans-serif" font-size="24" fill="#e0e7ff" text-anchor="middle">
+    of 65
+  </text>
+
+  <!-- Member email -->
+  <text x="400" y="390" font-family="Arial, sans-serif" font-size="20" fill="#ffffff" text-anchor="middle">
+    ${memberEmail}
+  </text>
+
+  <!-- Payment date -->
+  <text x="400" y="430" font-family="Arial, sans-serif" font-size="16" fill="#cbd5e1" text-anchor="middle">
+    Joined ${paymentDate}
+  </text>
+
+  <!-- Benefits -->
+  <text x="400" y="480" font-family="Arial, sans-serif" font-size="18" font-weight="600" fill="#facc15" text-anchor="middle">
+    Forever Price Lock: $750/month
+  </text>
+  <text x="400" y="510" font-family="Arial, sans-serif" font-size="16" fill="#e0e7ff" text-anchor="middle">
+    Full Platform Access: December 1, 2025
+  </text>
+
+  <!-- Footer -->
+  <text x="400" y="560" font-family="Arial, sans-serif" font-size="14" fill="#94a3b8" text-anchor="middle">
+    Andru AI Platform • platform.andru-ai.com
+  </text>
+</svg>`;
+
+    logger.info('Founding member badge generated', {
+      userId,
+      foundingMemberNumber
+    });
+
+    // Set headers for download
+    res.setHeader('Content-Type', 'image/svg+xml');
+    res.setHeader('Content-Disposition', `attachment; filename="andru-beta-user-${foundingMemberNumber}.svg"`);
+    res.send(svg);
+
+  } catch (error) {
+    logger.error('Error generating founding member badge', {
+      error: error.message,
+      stack: error.stack,
+      userId: req.params.userId
+    });
+
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to generate badge'
+    });
+  }
+});
+
+/**
  * GET /api/admin/stats
  * Get high-level statistics about the platform
  *
@@ -951,6 +1247,255 @@ router.get('/stats', authenticateSupabaseJWT, requireAdmin, async (req, res) => 
     return res.status(500).json({
       success: false,
       error: 'Failed to fetch statistics'
+    });
+  }
+});
+
+/**
+ * GET /api/admin/costs/today
+ * Get real-time AI costs for today
+ *
+ * Authentication: Required (Supabase JWT)
+ * Authorization: Admin only (geter@humusnshore.org)
+ *
+ * Response:
+ * - total_calls: Number of AI calls today
+ * - successful_calls: Number of successful calls
+ * - failed_calls: Number of failed calls
+ * - total_cost_usd: Total cost in USD
+ * - total_tokens: Total tokens consumed
+ * - operations_breakdown: Cost breakdown by operation type
+ * - models_breakdown: Cost breakdown by model
+ */
+router.get('/costs/today', authenticateSupabaseJWT, requireAdmin, async (req, res) => {
+  try {
+    logger.info('Admin: Fetching today\'s AI costs', {
+      adminEmail: req.user.email
+    });
+
+    const result = await aiCostTrackingService.getTodaysCosts();
+
+    if (!result.success) {
+      logger.error('Failed to fetch today\'s costs', {
+        error: result.error,
+        adminEmail: req.user.email
+      });
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to fetch today\'s costs'
+      });
+    }
+
+    logger.info('Admin: Today\'s AI costs retrieved', {
+      totalCalls: result.data.total_calls,
+      totalCost: result.data.total_cost_usd,
+      adminEmail: req.user.email
+    });
+
+    return res.json({
+      success: true,
+      data: result.data
+    });
+
+  } catch (error) {
+    logger.error('Error fetching today\'s AI costs', {
+      error: error.message,
+      stack: error.stack,
+      adminEmail: req.user.email
+    });
+
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to fetch today\'s costs'
+    });
+  }
+});
+
+/**
+ * GET /api/admin/costs/monthly
+ * Get monthly AI cost summary
+ *
+ * Authentication: Required (Supabase JWT)
+ * Authorization: Admin only (geter@humusnshore.org)
+ *
+ * Query params:
+ * - month: Optional YYYY-MM-DD date (defaults to current month)
+ *
+ * Response:
+ * - month: Month date
+ * - total_calls: Total calls for the month
+ * - total_cost_usd: Total cost in USD
+ * - total_tokens: Total tokens consumed
+ * - avg_cost_per_call: Average cost per call
+ * - avg_tokens_per_call: Average tokens per call
+ */
+router.get('/costs/monthly', authenticateSupabaseJWT, requireAdmin, async (req, res) => {
+  try {
+    const { month } = req.query;
+    const targetMonth = month ? new Date(month) : new Date();
+
+    logger.info('Admin: Fetching monthly AI costs', {
+      month: targetMonth.toISOString().split('T')[0],
+      adminEmail: req.user.email
+    });
+
+    const result = await aiCostTrackingService.getMonthlyCosts(targetMonth);
+
+    if (!result.success) {
+      logger.error('Failed to fetch monthly costs', {
+        error: result.error,
+        adminEmail: req.user.email
+      });
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to fetch monthly costs'
+      });
+    }
+
+    logger.info('Admin: Monthly AI costs retrieved', {
+      month: result.data.month,
+      totalCost: result.data.total_cost_usd,
+      adminEmail: req.user.email
+    });
+
+    return res.json({
+      success: true,
+      data: result.data
+    });
+
+  } catch (error) {
+    logger.error('Error fetching monthly AI costs', {
+      error: error.message,
+      stack: error.stack,
+      adminEmail: req.user.email
+    });
+
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to fetch monthly costs'
+    });
+  }
+});
+
+/**
+ * GET /api/admin/costs/daily
+ * Get daily cost summaries for a date range
+ *
+ * Authentication: Required (Supabase JWT)
+ * Authorization: Admin only (geter@humusnshore.org)
+ *
+ * Query params:
+ * - start: Start date (YYYY-MM-DD, defaults to 30 days ago)
+ * - end: End date (YYYY-MM-DD, defaults to today)
+ *
+ * Response: Array of daily summaries
+ */
+router.get('/costs/daily', authenticateSupabaseJWT, requireAdmin, async (req, res) => {
+  try {
+    const { start, end } = req.query;
+    const endDate = end ? new Date(end) : new Date();
+    const startDate = start ? new Date(start) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+
+    logger.info('Admin: Fetching daily AI costs', {
+      startDate: startDate.toISOString().split('T')[0],
+      endDate: endDate.toISOString().split('T')[0],
+      adminEmail: req.user.email
+    });
+
+    const result = await aiCostTrackingService.getDailyCosts(startDate, endDate);
+
+    if (!result.success) {
+      logger.error('Failed to fetch daily costs', {
+        error: result.error,
+        adminEmail: req.user.email
+      });
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to fetch daily costs'
+      });
+    }
+
+    logger.info('Admin: Daily AI costs retrieved', {
+      count: result.data.length,
+      adminEmail: req.user.email
+    });
+
+    return res.json({
+      success: true,
+      data: result.data
+    });
+
+  } catch (error) {
+    logger.error('Error fetching daily AI costs', {
+      error: error.message,
+      stack: error.stack,
+      adminEmail: req.user.email
+    });
+
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to fetch daily costs'
+    });
+  }
+});
+
+/**
+ * GET /api/admin/costs/top-users
+ * Get top spending users
+ *
+ * Authentication: Required (Supabase JWT)
+ * Authorization: Admin only (geter@humusnshore.org)
+ *
+ * Query params:
+ * - limit: Number of users to return (default: 10)
+ * - since: Start date for filtering (YYYY-MM-DD, optional)
+ *
+ * Response: Array of users with total cost
+ */
+router.get('/costs/top-users', authenticateSupabaseJWT, requireAdmin, async (req, res) => {
+  try {
+    const { limit = 10, since } = req.query;
+    const sinceDate = since ? new Date(since) : null;
+
+    logger.info('Admin: Fetching top spending users', {
+      limit,
+      since: sinceDate?.toISOString().split('T')[0],
+      adminEmail: req.user.email
+    });
+
+    const result = await aiCostTrackingService.getTopSpendingUsers(parseInt(limit), sinceDate);
+
+    if (!result.success) {
+      logger.error('Failed to fetch top spending users', {
+        error: result.error,
+        adminEmail: req.user.email
+      });
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to fetch top spending users'
+      });
+    }
+
+    logger.info('Admin: Top spending users retrieved', {
+      count: result.data.length,
+      adminEmail: req.user.email
+    });
+
+    return res.json({
+      success: true,
+      data: result.data
+    });
+
+  } catch (error) {
+    logger.error('Error fetching top spending users', {
+      error: error.message,
+      stack: error.stack,
+      adminEmail: req.user.email
+    });
+
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to fetch top spending users'
     });
   }
 });
