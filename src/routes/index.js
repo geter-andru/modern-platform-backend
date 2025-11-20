@@ -23,6 +23,7 @@ import prospectDiscoveryRoutes from './prospectDiscoveryRoutes.js';
 import leadingIndicatorsRoutes from './leadingIndicators.js';
 import dependencyValidationRoutes from './dependencyValidationRoutes.js';
 import contextAggregationRoutes from './contextAggregationRoutes.js';
+import resourceRoutes from './resourceRoutes.js';
 import { validate, paramSchemas, costCalculationSchema, costCalculationSaveSchema, costCalculationCompareSchema, businessCaseSchema, businessCaseExportSchema, exportFormatSchema, comprehensiveExportSchema } from '../middleware/validation.js';
 import { strictRateLimiter } from '../middleware/security.js';
 import { authenticateMulti, requireCustomerContext, customerRateLimit } from '../middleware/auth.js';
@@ -82,6 +83,9 @@ router.use('/api/dependencies', dependencyValidationRoutes);
 
 // Context Aggregation routes (requires auth - aggregates context for AI generation)
 router.use('/api/context', contextAggregationRoutes);
+
+// Resource Library routes (requires auth - AI-powered resource generation)
+router.use('/api/resources', resourceRoutes);
 
 // Webhook routes (mixed auth)
 router.use('/api/webhooks', webhookRoutes);
