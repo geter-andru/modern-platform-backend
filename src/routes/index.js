@@ -28,6 +28,7 @@ import { validate, paramSchemas, costCalculationSchema, costCalculationSaveSchem
 import { strictRateLimiter } from '../middleware/security.js';
 import { authenticateMulti, requireCustomerContext, customerRateLimit } from '../middleware/auth.js';
 import { performanceMonitoring, getMetricsEndpoint } from '../middleware/performanceMonitoring.js';
+import { tierRateLimit, getUsageInfo } from '../middleware/tierRateLimit.js';
 
 const router = express.Router();
 
@@ -146,7 +147,7 @@ router.put('/api/customer/:customerId',
 
 // AI-powered ICP generation
 router.post('/api/customer/:customerId/generate-icp',
-  customerRateLimit(5, 60 * 60 * 1000), // 5 requests per hour (AI generation is expensive)
+  tierRateLimit('icp_generation'), // Tier-based: Free=5/day, Trial=15/day, Paid=100/hr
   authenticateMulti,
   validate(paramSchemas.customerId, 'params'),
   requireCustomerContext,
@@ -189,7 +190,7 @@ router.post('/api/cost-calculator/calculate',
 );
 
 router.post('/api/cost-calculator/calculate-ai',
-  customerRateLimit(5, 60 * 60 * 1000), // 5 requests per hour (AI is expensive)
+  tierRateLimit('cost_calculator_ai'), // Tier-based: Free=5/day, Trial=15/day, Paid=100/hr
   authenticateMulti,
   validate(costCalculationSchema),
   costCalculatorController.calculateCostWithAI
@@ -340,6 +341,48 @@ router.post('/api/resources/share',
 if (process.env.NODE_ENV !== 'production') {
   router.get('/api/metrics', getMetricsEndpoint);
 }
+
+// AI Usage/Rate Limit Info endpoint (for frontend to display remaining generations)
+router.get('/api/usage-info',
+  authenticateMulti,
+  async (req, res) => {
+    try {
+      const userId = req.auth?.userId || req.auth?.customerId || req.user?.id;
+      const ip = req.ip || req.connection?.remoteAddress || 'unknown';
+
+      // Get usage info for key AI endpoints
+      const [icpUsage, resourceUsage, costCalcUsage] = await Promise.all([
+        getUsageInfo(userId, ip, 'icp_generation'),
+        getUsageInfo(userId, ip, 'resource_generation'),
+        getUsageInfo(userId, ip, 'cost_calculator_ai')
+      ]);
+
+      res.json({
+        success: true,
+        data: {
+          tier: icpUsage.tier,
+          endpoints: {
+            icp_generation: icpUsage,
+            resource_generation: resourceUsage,
+            cost_calculator_ai: costCalcUsage
+          },
+          upgrade: icpUsage.tier !== 'paid' ? {
+            message: icpUsage.tier === 'free'
+              ? 'Upgrade to get unlimited AI generations and full platform access.'
+              : 'Your trial includes limited AI generations. Upgrade for unlimited access.',
+            url: '/pricing',
+            buttonText: 'View Pricing - $497/month'
+          } : null
+        }
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        error: 'Failed to fetch usage info'
+      });
+    }
+  }
+);
 
 // API documentation route
 router.get('/api/docs', (req, res) => {

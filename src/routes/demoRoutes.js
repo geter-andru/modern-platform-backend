@@ -49,11 +49,11 @@ const demoRateLimiter = process.env.NODE_ENV === 'test'
       message: {
         success: false,
         error: 'Demo limit reached. You\'ve generated 3 demo ICPs in the last 24 hours.',
-        details: 'Sign up for free to generate unlimited ICPs with more features.',
+        details: 'Upgrade to founding member to generate unlimited ICPs with full platform access.',
         retryAfter: 86400, // 24 hours in seconds
         callToAction: {
-          text: 'Sign Up Free',
-          url: '/auth'
+          text: 'Get Full Access - $497/month',
+          url: '/pricing'
         }
       },
       standardHeaders: true,
@@ -65,11 +65,11 @@ const demoRateLimiter = process.env.NODE_ENV === 'test'
         res.status(429).json({
           success: false,
           error: 'Demo limit reached. You\'ve generated 3 demo ICPs in the last 24 hours.',
-          details: 'Sign up for free to generate unlimited ICPs with more features.',
+          details: 'Upgrade to founding member to generate unlimited ICPs with full platform access.',
           retryAfter: 86400,
           callToAction: {
-            text: 'Sign Up Free',
-            url: '/auth'
+            text: 'Get Full Access - $497/month',
+            url: '/pricing'
           }
         });
       },

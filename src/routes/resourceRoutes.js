@@ -8,6 +8,7 @@ import express from 'express';
 import resourceGenerationService from '../services/resourceGenerationService.js';
 import { authenticateSupabaseJWT } from '../middleware/supabaseAuth.js';
 import { customerRateLimit } from '../middleware/auth.js';
+import { tierRateLimit } from '../middleware/tierRateLimit.js';
 import logger from '../utils/logger.js';
 import {
   STRATEGIC_ASSETS,
@@ -29,7 +30,7 @@ const router = express.Router();
  * }
  */
 router.post('/generate',
-  customerRateLimit(30, 60 * 1000), // 30 requests per minute
+  tierRateLimit('resource_generation'), // Tier-based: Free=5/day, Trial=15/day, Paid=100/hr
   authenticateSupabaseJWT,
   async (req, res) => {
     const { resourceId: providedResourceId, assetId, streaming = false } = req.body;
@@ -111,7 +112,7 @@ router.post('/generate',
  * }
  */
 router.post('/generate-batch',
-  customerRateLimit(10, 60 * 1000), // 10 batch requests per minute
+  tierRateLimit('resource_batch_generation', { free: { maxCalls: 2 }, trial: { maxCalls: 5 } }),
   authenticateSupabaseJWT,
   async (req, res) => {
     const { assetIds, tier } = req.body;
@@ -406,7 +407,7 @@ router.get('/tier-info/:tier',
  * Regenerate an existing asset (user wants to update with new context)
  */
 router.post('/regenerate',
-  customerRateLimit(20, 60 * 1000),
+  tierRateLimit('resource_regeneration', { free: { maxCalls: 3 }, trial: { maxCalls: 10 } }),
   authenticateSupabaseJWT,
   async (req, res) => {
     const { assetId, feedback } = req.body;
